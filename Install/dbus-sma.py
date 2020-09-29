@@ -302,26 +302,23 @@ class DbusSmaDriver(SmaDriver):
   
 
 if __name__ == "__main__":
-	# Argument parsing
-	parser = argparse.ArgumentParser(
-		description='Converts readings from AC-Sensors connected to a VE.Bus device in a pvinverter ' +
-					'D-Bus service.'
-	)
+  # Argument parsing
+  parser = argparse.ArgumentParser(description='Converts readings from AC-Sensors connected to a VE.Bus device in a pvinverter ' + 'D-Bus service.')
 
-	parser.add_argument("-d", "--debug", help="set logging level to debug",
-					action="store_true")
+  parser.add_argument("-d", "--debug", help="set logging level to debug",action="store_true")
 
-	args = parser.parse_args()
+  args = parser.parse_args()
 
-	print("-------- dbus_SMADriver, v" + "1" + " is starting up --------")
+  print("-------- dbus_SMADriver, v" + "1" + " is starting up --------")
 	#logger = setup_logging(args.debug)
 
 	# Have a mainloop, so we can send/receive asynchronous calls to and from dbus
-	DBusGMainLoop(set_as_default=True)
+  DBusGMainLoop(set_as_default=True)
 
-	smadriver = DbusSmaDriver()
+  smadriver = DbusSmaDriver()
 
 	# Start and run the mainloop
 	#logger.info("Starting mainloop, responding only on events")
-	mainloop = gobject.MainLoop()
-	mainloop.run()
+  mainloop = gobject.MainLoop()
+  mainloop.run()
+  quit(1)
