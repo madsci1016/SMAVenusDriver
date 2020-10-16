@@ -103,7 +103,7 @@ class SmaDriver:
     self._changed = True
     self._updatevalues()
 
-    gobject.timeout_add(1000, exit_on_error, self._handletimertick)
+    #gobject.timeout_add(1000, exit_on_error, self._handletimertick)
     gobject.timeout_add(2000, exit_on_error, self._handlecantx)
     gobject.timeout_add(2000, exit_on_error, self._handleenergy)
     gobject.timeout_add(2, exit_on_error, self._parse_can_data)
@@ -124,6 +124,7 @@ class SmaDriver:
 
   def _parse_can_data(self):
 
+    
     msg = bus.recv(1)
     if msg is not None:
       if msg.arbitration_id == CANFrames["ExtPwr"]:
@@ -159,6 +160,7 @@ class SmaDriver:
         elif msg.data[6] == 0x4e:
           System["ExtRelay"] = 0
         self._updatedbus()
+
     return True
 
   def _updatedbus(self):
@@ -243,41 +245,32 @@ class SmaDriver:
                       is_extended_id=False)
 
 
-    try:
-        bus.send(msg)
- #       print("Message sent on {}".format(bus.channel_info))
-    except can.CanError:
-        print("Message NOT sent")
+
+    bus.send(msg)
+    #       print("Message sent on {}".format(bus.channel_info))
     time.sleep(.100)
-    try:
-        bus.send(msg2)
-  #      print("Message sent on {}".format(bus.channel_info))
-    except can.CanError:
-        print("Message NOT sent")
+
+    bus.send(msg2)
+    #      print("Message sent on {}".format(bus.channel_info))
     time.sleep(.100)
-    try:
-        bus.send(msg3)
-   #     print("Message sent on {}".format(bus.channel_info))
-    except can.CanError:
-        print("Message NOT sent")
+
+    bus.send(msg3)
+    #     print("Message sent on {}".format(bus.channel_info))
+
     time.sleep(.100)
-    try:
-        bus.send(msg4)
+
+    bus.send(msg4)
     #    print("Message sent on {}".format(bus.channel_info))
-    except can.CanError:
-        print("Message NOT sent")
+
     time.sleep(.100)
-    try:
-        bus.send(msg5)
-#        print("Message sent on {}".format(bus.channel_info))
-    except can.CanError:
-        print("Message NOT sent")
+
+    bus.send(msg5)
+    #        print("Message sent on {}".format(bus.channel_info))
+
     time.sleep(.100)
-    try:
-        bus.send(msg6)
- #       print("Message sent on {}".format(bus.channel_info))
-    except can.CanError:
-        print("Message NOT sent")
+
+    bus.send(msg6)
+    #       print("Message sent on {}".format(bus.channel_info))
 
     return True  # keep timer running
 
@@ -304,7 +297,7 @@ class DbusSmaDriver(SmaDriver):
 if __name__ == "__main__":
   # Argument parsing
   parser = argparse.ArgumentParser(description='Converts readings from AC-Sensors connected to a VE.Bus device in a pvinverter ' + 'D-Bus service.')
-
+  parser.add_argument('-s', '--serial', help='tty')
   parser.add_argument("-d", "--debug", help="set logging level to debug",action="store_true")
 
   args = parser.parse_args()
@@ -321,4 +314,7 @@ if __name__ == "__main__":
 	#logger.info("Starting mainloop, responding only on events")
   mainloop = gobject.MainLoop()
   mainloop.run()
+  print("-------- dbus_SMADriver, v" + "1" + " is shuting down --------")
+  bus.shutdown()
+  sys.exit(0xFF)
   quit(1)
