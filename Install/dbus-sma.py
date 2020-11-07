@@ -10,6 +10,7 @@ from can.bus import BusState
 from timeit import default_timer as timer
 import time
 from itertools import chain
+from datetime import datetime 
 
 # Victron packages
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), 'ext', 'velib_python'))
@@ -34,11 +35,11 @@ driver = {
 	'connection'  : "com.victronenergy.vebus.ttyACM0"
 }
 
-CANFrames = {"ExtPwr": 0x300, "InvPwr": 0x301, "OutputVoltage": 0x304, "Battery": 0x305, "Relay": 0x306, "ExtVoltage": 0x309}
+CANFrames = {"ExtPwr": 0x300, "InvPwr": 0x301, "OutputVoltage": 0x304, "Battery": 0x305, "Relay": 0x306, "LoadPwr": 0x308, "ExtVoltage": 0x309}
 Line1 = {"OutputVoltage": 0, "ExtPwr": 0, "InvPwr": 0, "ExtVoltage": 0, "ExtFreq": 0.00, "OutputFreq": 0.00}
 Line2 = {"OutputVoltage": 0, "ExtPwr": 0, "InvPwr": 0, "ExtVoltage": 0}
 Battery = {"Voltage": 0, "Current": 0}
-System = {"ExtRelay" : 0}
+System = {"ExtRelay" : 0, "Load" : 0}
 
 bus = can.interface.Bus(bustype='slcan', channel='/dev/ttyACM0', bitrate=500000)
 
@@ -48,6 +49,9 @@ def getSignedNumber(number, bitLength):
         return number | ~mask
     else:
         return number & mask
+
+def bytes(integer):
+    return divmod(integer, 0x100)
 
 class SmaDriver:
 
@@ -82,6 +86,8 @@ class SmaDriver:
     self._dbusservice.add_path('/Ac/ActiveIn/L2/V',                -1)
     self._dbusservice.add_path('/Ac/ActiveIn/L1/F',                -1)
     self._dbusservice.add_path('/Ac/ActiveIn/L2/F',                -1)
+    self._dbusservice.add_path('/Ac/ActiveIn/L1/I',                -1)
+    self._dbusservice.add_path('/Ac/ActiveIn/L2/I',                -1)
     self._dbusservice.add_path('/Ac/ActiveIn/Connected',         1)
     self._dbusservice.add_path('/Ac/ActiveIn/ActiveInput',               0)
     self._dbusservice.add_path('/VebusError',                    0)
@@ -137,6 +143,9 @@ class SmaDriver:
         Line2["InvPwr"] = (getSignedNumber(msg.data[2] + msg.data[3]*256, 16)*100)
         #calculate_pwr()
         self._updatedbus()
+      elif msg.arbitration_id == CANFrames["LoadPwr"]:
+        System["Load"] = (getSignedNumber(msg.data[0] + msg.data[1]*256, 16)*100)
+        self._updatedbus()
       elif msg.arbitration_id == CANFrames["OutputVoltage"]:
         Line1["OutputVoltage"] = (float(getSignedNumber(msg.data[0] + msg.data[1]*256, 16))/10)
         Line2["OutputVoltage"] = (float(getSignedNumber(msg.data[2] + msg.data[3]*256, 16))/10)
@@ -166,21 +175,26 @@ class SmaDriver:
   def _updatedbus(self):
     self._dbusservice["/Ac/ActiveIn/L1/P"] = Line1["ExtPwr"]
     self._dbusservice["/Ac/ActiveIn/L2/P"] = Line2["ExtPwr"]
+    self._dbusservice["/Ac/ActiveIn/L1/V"] = Line1["ExtVoltage"]
+    self._dbusservice["/Ac/ActiveIn/L2/V"] = Line2["ExtVoltage"]
+    self._dbusservice["/Ac/ActiveIn/L1/F"] = Line1["ExtFreq"]
+    self._dbusservice["/Ac/ActiveIn/L2/F"] = Line1["ExtFreq"]
+    if Line1["ExtVoltage"] != 0:
+      self._dbusservice["/Ac/ActiveIn/L1/I"] = int(Line1["ExtPwr"] / Line1["ExtVoltage"])
+    if Line2["ExtVoltage"] != 0:
+      self._dbusservice["/Ac/ActiveIn/L2/I"] = int(Line2["ExtPwr"] / Line2["ExtVoltage"])
     self._dbusservice["/Ac/ActiveIn/P"] = Line1["ExtPwr"] + Line2["ExtPwr"]
     self._dbusservice["/Dc/0/Voltage"] = Battery["Voltage"]
     self._dbusservice["/Dc/0/Current"] = Battery["Current"] *-1
     self._dbusservice["/Dc/0/Power"] = Battery["Current"] * Battery["Voltage"] *-1
     self._dbusservice["/Ac/Out/L1/P"] = Line1["ExtPwr"] + Line1["InvPwr"]
     self._dbusservice["/Ac/Out/L2/P"] = Line2["ExtPwr"] + Line2["InvPwr"] 
-    self._dbusservice["/Ac/Out/P"] = Line1["InvPwr"] + Line1["InvPwr"] + Line1["ExtPwr"] + Line2["ExtPwr"]
+    self._dbusservice["/Ac/Out/P"] =  System["Load"] 
     self._dbusservice["/Ac/Out/L1/F"] = Line1["OutputFreq"]
     self._dbusservice["/Ac/Out/L2/F"] = Line1["OutputFreq"]
     self._dbusservice["/Ac/Out/L1/V"] = Line1["OutputVoltage"]
     self._dbusservice["/Ac/Out/L2/V"] = Line2["OutputVoltage"]
-    self._dbusservice["/Ac/ActiveIn/L1/V"] = Line1["ExtVoltage"]
-    self._dbusservice["/Ac/ActiveIn/L2/V"] = Line2["ExtVoltage"]
-    self._dbusservice["/Ac/ActiveIn/L1/F"] = Line1["ExtFreq"]
-    self._dbusservice["/Ac/ActiveIn/L2/F"] = Line1["ExtFreq"]
+
 
     if System["ExtRelay"]:
       self._dbusservice["/Ac/ActiveIn/Connected"] = 1
@@ -202,7 +216,7 @@ class SmaDriver:
       self._dbusservice["/Energy/GridToDc"] = self._dbusservice["/Energy/GridToDc"] + (self._dbusservice["/Dc/0/Power"]  * energy_sec * 0.00000028)
     else:
       #battery to out
-      self._dbusservice["/Energy/DcToAcOut"] = self._dbusservice["/Energy/DcToAcOut"] +(self._dbusservice["/Dc/0/Power"]  * energy_sec * 0.00000028 * -1)
+      self._dbusservice["/Energy/DcToAcOut"] = self._dbusservice["/Energy/DcToAcOut"] +((self._dbusservice["/Ac/Out/P"])  * energy_sec * 0.00000028)
   #print(timer() - self._dbusservice["/Energy/Time"], ":", self._dbusservice["/Ac/Out/P"])
     self._dbusservice["/Energy/AcIn1ToAcOut"] = self._dbusservice["/Energy/GridToAcOut"]
     self._dbusservice["/Energy/AcIn1ToInverter"] = self._dbusservice["/Energy/GridToDc"]
@@ -222,27 +236,68 @@ class SmaDriver:
   	# Called on a one second timer
   def _handlecantx(self):
     #print("TX here")
-    Soc = int(self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Soc'))
+    SoC_HD = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Soc')
+    Soc = int(SoC_HD)
     #print(Soc)
 
-    msg = can.Message(arbitration_id=0x351,
-                      data=[0x58, 0x02, 0x1e, 0x0, 0x6c, 0x07, 0xa4, 0x01],
-                      is_extended_id=False)
+    now = datetime.now()
+    #requested charge current varies by time of day and SoC value
+    
+    #for now, some rules to change charge behavior hard coded for my application.
+    if now.hour >= 14 and now.hour <=22:
+      if now.hour >= 17 and Soc < 39:
+        Req_Charge_A = 150.0
+      else:
+        Req_Charge_A = 75.0
+    else:
+      Req_Charge_A = 3.0
+
+    if Soc < 8:
+      Req_Charge_A = 150.0
+
+
+    #BMS values eventually read from settings. 
+    Max_V = 60.0
+    Min_V = 46.0
+  #  Req_Charge_A = 20.0
+    Req_Discharge_A = 200.0
+
+   #Low battery safety, if low voltage, pre-empt SoC with minimum value to force grid transfer
+    if Line1["ExtVoltage"] > 100 and Battery["Voltage"] < 49.6:
+      Soc = 1
+      SoC_HD = 1.00
+
+    #breakup some of the values for CAN packing
+    SoC_HD = int(SoC_HD*100)
+    SoC_HD_H, SoC_HD_L = bytes(SoC_HD)
+    Req_Charge_HD = int(Req_Charge_A*10)
+    Req_Charge_H, Req_Charge_L = bytes(Req_Charge_HD)
+    Req_Discharge_HD = int(Req_Discharge_A*10)
+    Req_Discharge_H, Req_Discharge_L = bytes(Req_Discharge_HD)
+    Max_V_HD = int(Max_V*10)
+    Max_V_H, Max_V_L = bytes(Max_V_HD)
+    Min_V_HD = int(Min_V*10)
+    Min_V_H, Min_V_L = bytes(Min_V_HD)
+
+
+    msg = can.Message(arbitration_id=0x351, 
+      data=[Max_V_L, Max_V_H, Req_Charge_L, Req_Charge_H, Req_Discharge_L, Req_Discharge_H, Min_V_L, Min_V_H],
+      is_extended_id=False)
     msg2 = can.Message(arbitration_id=0x355,
-                      data=[Soc, 0x00, 0x64, 0x0, 0x00, 0x00],
-                      is_extended_id=False)
+      data=[Soc, 0x00, 0x64, 0x0, SoC_HD_L, SoC_HD_H],
+      is_extended_id=False)
     msg3 = can.Message(arbitration_id=0x356,
-                      data=[0x00, 0x00, 0x00, 0x0, 0xf0, 0x00],
-                      is_extended_id=False)
+      data=[0x00, 0x00, 0x00, 0x0, 0xf0, 0x00],
+      is_extended_id=False)
     msg4 = can.Message(arbitration_id=0x35a,
-                      data=[0x00, 0x00, 0x00, 0x0, 0x01, 0x00, 0x00, 0x00],
-                      is_extended_id=False)
+      data=[0x00, 0x00, 0x00, 0x0, 0x01, 0x00, 0x00, 0x00],
+      is_extended_id=False)
     msg5 = can.Message(arbitration_id=0x35e,
-                      data=[0x42, 0x41, 0x54, 0x52, 0x49, 0x55, 0x4d, 0x20],
-                      is_extended_id=False)
+      data=[0x42, 0x41, 0x54, 0x52, 0x49, 0x55, 0x4d, 0x20],
+      is_extended_id=False)
     msg6 = can.Message(arbitration_id=0x35f,
-                      data=[0x03, 0x04, 0x0a, 0x04, 0x76, 0x02, 0x00, 0x00],
-                      is_extended_id=False)
+      data=[0x03, 0x04, 0x0a, 0x04, 0x76, 0x02, 0x00, 0x00],
+      is_extended_id=False)
 
 
 
