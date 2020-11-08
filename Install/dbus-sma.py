@@ -59,7 +59,7 @@ class SmaDriver:
 		# Why this dummy? Because DbusMonitor expects these values to be there, even though we don't
 		# need them. So just add some dummy data. This can go away when DbusMonitor is more generic.
     dummy = {'code': None, 'whenToLog': 'configChange', 'accessLevel': None}
-    dbus_tree = {'com.victronenergy.system': {'/Dc/Battery/Soc': dummy}}
+    dbus_tree = {'com.victronenergy.system': {'/Dc/Battery/Soc': dummy, '/Dc/Battery/Voltage': dummy }}
 
     self._dbusmonitor = self._create_dbus_monitor(dbus_tree, valueChangedCallback=self._dbus_value_changed)
 
@@ -237,6 +237,7 @@ class SmaDriver:
   def _handlecantx(self):
     #print("TX here")
     SoC_HD = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Soc')
+    Batt_V = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Voltage')
     Soc = int(SoC_HD)
     #print(Soc)
 
@@ -261,9 +262,23 @@ class SmaDriver:
     Min_V = 46.0
   #  Req_Charge_A = 20.0
     Req_Discharge_A = 200.0
+    Abs_V = 56.5
 
+    #Poor mans CC-CV charger. Since the SMA charge controler is disabled in Li-ion mode
+    # we have to pretend to be one, assuming the inverter has been forced on grid by user. 
+    # I need to write a proper CC-CV to float charger state machine, but for now, roll-back current
+    if Batt_V > 56:  # grab control of requested current from above code.
+      if Batt_V > 56.6:
+        Req_Charge_A = 0;
+      elif Batt_V > 56.3:
+        Req_Charge_A = (Battery["Current"] *-1) - 1
+      else:
+        Req_Charge_A = (Battery["Current"] *-1)
+    if Req_Charge_A < 0:
+      Req_Charge_A = 0;
+    
    #Low battery safety, if low voltage, pre-empt SoC with minimum value to force grid transfer
-    if Line1["ExtVoltage"] > 100 and Battery["Voltage"] < 49.6:
+    if Line1["ExtVoltage"] > 100 and Batt_V < 49.6:
       Soc = 1
       SoC_HD = 1.00
 
