@@ -43,6 +43,9 @@ System = {"ExtRelay" : 0, "Load" : 0}
 
 bus = can.interface.Bus(bustype='slcan', channel='/dev/ttyACM0', bitrate=500000)
 
+SMAupdate = False
+Req_Charge_A = 0
+
 def getSignedNumber(number, bitLength):
     mask = (2 ** bitLength) - 1
     if number & (1 << (bitLength - 1)):
@@ -59,7 +62,7 @@ class SmaDriver:
 		# Why this dummy? Because DbusMonitor expects these values to be there, even though we don't
 		# need them. So just add some dummy data. This can go away when DbusMonitor is more generic.
     dummy = {'code': None, 'whenToLog': 'configChange', 'accessLevel': None}
-    dbus_tree = {'com.victronenergy.system': {'/Dc/Battery/Soc': dummy, '/Dc/Battery/Voltage': dummy }}
+    dbus_tree = {'com.victronenergy.system': {'/Dc/Battery/Soc': dummy, '/Dc/Battery/Current': dummy,'/Dc/Battery/Voltage': dummy }}
 
     self._dbusmonitor = self._create_dbus_monitor(dbus_tree, valueChangedCallback=self._dbus_value_changed)
 
@@ -161,6 +164,8 @@ class SmaDriver:
         Battery["Voltage"] = float(msg.data[0] + msg.data[1]*256) / 10
         Battery["Current"] = float(getSignedNumber(msg.data[2] + msg.data[3]*256, 16)) / 10
         #print(Battery["Current"])	
+        global SMAupdate
+        SMAupdate = True
         self._updatedbus()
       elif msg.arbitration_id == CANFrames["Relay"]:
         #print(msg.data[6])
@@ -235,52 +240,70 @@ class SmaDriver:
 
   	# Called on a one second timer
   def _handlecantx(self):
-    #print("TX here")
+    
+    #get some data from the Victron BUS
     SoC_HD = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Soc')
     Batt_V = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Voltage')
+    Batt_C = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Current')
     Soc = int(SoC_HD)
     #print(Soc)
-
-    now = datetime.now()
-    #requested charge current varies by time of day and SoC value
-    
-    #for now, some rules to change charge behavior hard coded for my application.
-    if now.hour >= 14 and now.hour <=22:
-      if now.hour >= 17 and Soc < 39:
-        Req_Charge_A = 150.0
-      else:
-        Req_Charge_A = 75.0
-    else:
-      Req_Charge_A = 3.0
-
-    if Soc < 8:
-      Req_Charge_A = 150.0
-
 
     #BMS values eventually read from settings. 
     Max_V = 60.0
     Min_V = 46.0
-  #  Req_Charge_A = 20.0
+    global Req_Charge_A 
     Req_Discharge_A = 200.0
     Abs_V = 56.5
 
-    #Poor mans CC-CV charger. Since the SMA charge controler is disabled in Li-ion mode
-    # we have to pretend to be one, assuming the inverter has been forced on grid by user. 
-    # I need to write a proper CC-CV to float charger state machine, but for now, roll-back current
-    if Batt_V > 56:  # grab control of requested current from above code.
-      if Batt_V > 56.6:
-        Req_Charge_A = 0;
-      elif Batt_V > 56.3:
-        Req_Charge_A = (Battery["Current"] *-1) - 1
+    now = datetime.now()
+  
+    #no point in running the math below to calculate a new target charge current unless we have an update from the inverters
+    #which is slow. Like every 12 seconds. 
+    global SMAupdate  
+    if SMAupdate == True:
+      SMAupdate = False
+
+      #requested charge current varies by time of day and SoC value
+      #for now, some rules to change charge behavior hard coded for my application.
+      #Gonna try making these charge current targets inlcuding solar, so we need to subtract solar current later. 
+      if now.hour >= 14 and now.hour <=22:
+        if now.hour >= 17 and Soc < 39:
+          Req_Charge_A = 175.0
+        else:
+          Req_Charge_A = 100.0
       else:
-        Req_Charge_A = (Battery["Current"] *-1)
-    if Req_Charge_A < 0:
-      Req_Charge_A = 0;
+        Req_Charge_A = 4.0
+
+      if Soc < 10:  #recovering from blackout? Charge fast! 
+        Req_Charge_A = 175.0
+
+      #compare requested charge current to present battery current. 
+      if Batt_C > 0: # only if we are charging 
+        if Batt_C > Req_Charge_A + 10:  #if solar is charging us the speed we want, don't add to it. 
+          Req_Charge_A = 0;
+        else:
+          Req_Charge_A = (Req_Charge_A - Batt_C) + (Battery["Current"] *-1)
+
+
+      #Poor mans CC-CV charger. Since the SMA charge controler is disabled in Li-ion mode
+      # we have to pretend to be one, assuming the inverter has been forced on grid by user. 
+      # I need to write a proper CC-CV to float charger state machine, but for now, roll-back current
+      if Batt_V > 56:  # grab control of requested current from above code.
+        if Batt_V > 56.6:
+          Req_Charge_A = 0;
+        elif Batt_V > 56.3:
+          Req_Charge_A = (Battery["Current"] *-1) - 5  #this works in tenths of Amps at this level remember
+        else:
+          Req_Charge_A = (Battery["Current"] *-1)
+      if Req_Charge_A < 0:
+        Req_Charge_A = 0;
     
    #Low battery safety, if low voltage, pre-empt SoC with minimum value to force grid transfer
     if Line1["ExtVoltage"] > 100 and Batt_V < 49.6:
       Soc = 1
       SoC_HD = 1.00
+
+    #print (Req_Charge_A)
 
     #breakup some of the values for CAN packing
     SoC_HD = int(SoC_HD*100)
