@@ -14,6 +14,13 @@ TODO list:
  
 CAN adapter I used: https://canable.io/
 
+Victron VenusOS Notes
+
+So what I'm doing here is pretending to be a proper Victron Multiplus inverter/charger so that the rest of the eco-system (web-ui, VRM portal, etc) grabs the data and displays/logs it. Victron is amazing at letting Venus OS be open source AND documenting it VERY well so that hackers can have at it. Yeah, they are understandably not thrilled I'm using a third-party device with their free stuff, but aren't against me doing it and specifically didn't ask me to stop (I offered). So, go buy Victron stuff, even if you already have an SMA inverter. I have 4 of their solar charge controllers and love them!
+
+That said, I'm not sure if I've emulated the Multiplus very well or in every way that I could. I did manage to reverse engineer the energy counting architecture so usage data should appear in the portal. But there are some quarks trying to do a 1-1 map SMA to Victron. For example, the SMA reports inverter power flow and AC-2 (external) power flow, but not output power flow implicitly per line. So I had to do math (inverter power, External power, and output power should always sum to 0, right) to get that value. There can be artifacts in the real time data because of that. SMA also doesn’t report energy at all, so my code is calculating that from power data to the best of it’s ability. 
+
+
 Hacking the SunnyIsland Notes
 
 The SMA SunnyIsland 6048 has two potential communications buses. One is a CAN bus “ComSync” and the other is a RS-485 bus "ComSma" that requires an adapter card to be installed. The CAN bus is used by the SMA’s to communicate from the master to the slaves in a cluster, and to a Battery Management System (BMS) when configure in Lithium Ion mode. The RS-485 bus is required to connect to SMA grid tie inverters and to the WebBox.
