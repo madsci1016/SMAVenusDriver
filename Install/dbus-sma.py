@@ -43,9 +43,6 @@ System = {"ExtRelay" : 0, "Load" : 0}
 
 bus = can.interface.Bus(bustype='slcan', channel='/dev/ttyACM0', bitrate=500000)
 
-SMAupdate = False
-Req_Charge_A = 0
-
 def getSignedNumber(number, bitLength):
     mask = (2 ** bitLength) - 1
     if number & (1 << (bitLength - 1)):
@@ -62,7 +59,7 @@ class SmaDriver:
 		# Why this dummy? Because DbusMonitor expects these values to be there, even though we don't
 		# need them. So just add some dummy data. This can go away when DbusMonitor is more generic.
     dummy = {'code': None, 'whenToLog': 'configChange', 'accessLevel': None}
-    dbus_tree = {'com.victronenergy.system': {'/Dc/Battery/Soc': dummy, '/Dc/Battery/Current': dummy,'/Dc/Battery/Voltage': dummy }}
+    dbus_tree = {'com.victronenergy.system': {'/Dc/Battery/Soc': dummy, '/Dc/Battery/Current': dummy, '/Dc/Pv/Current': dummy, '/Dc/Battery/Voltage': dummy }}
 
     self._dbusmonitor = self._create_dbus_monitor(dbus_tree, valueChangedCallback=self._dbus_value_changed)
 
@@ -140,7 +137,7 @@ class SmaDriver:
         Line1["ExtPwr"] = (getSignedNumber(msg.data[0] + msg.data[1]*256, 16)*100)
         Line2["ExtPwr"] = (getSignedNumber(msg.data[2] + msg.data[3]*256, 16)*100)
         #print("Line 1 Ext Pwr: ", Line1["ExtPwr"])
-        self._updatedbus()
+        #self._updatedbus()
       elif msg.arbitration_id == CANFrames["InvPwr"]:
         Line1["InvPwr"] = (getSignedNumber(msg.data[0] + msg.data[1]*256, 16)*100)
         Line2["InvPwr"] = (getSignedNumber(msg.data[2] + msg.data[3]*256, 16)*100)
@@ -164,8 +161,6 @@ class SmaDriver:
         Battery["Voltage"] = float(msg.data[0] + msg.data[1]*256) / 10
         Battery["Current"] = float(getSignedNumber(msg.data[2] + msg.data[3]*256, 16)) / 10
         #print(Battery["Current"])	
-        global SMAupdate
-        SMAupdate = True
         self._updatedbus()
       elif msg.arbitration_id == CANFrames["Relay"]:
         #print(msg.data[6])
@@ -245,45 +240,44 @@ class SmaDriver:
     SoC_HD = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Soc')
     Batt_V = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Voltage')
     Batt_C = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Current')
+    PV_C   = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Pv/Current')
     Soc = int(SoC_HD)
     #print(Soc)
 
     #BMS values eventually read from settings. 
     Max_V = 60.0
     Min_V = 46.0
-    global Req_Charge_A 
+    #global Req_Charge_A 
+    #global Cal_Charge_A 
     Req_Discharge_A = 200.0
     Abs_V = 56.5
 
     now = datetime.now()
   
-    #no point in running the math below to calculate a new target charge current unless we have an update from the inverters
-    #which is slow. Like every 12 seconds. 
-    global SMAupdate  
-    if SMAupdate == True:
-      SMAupdate = False
+    if System["ExtRelay"] == 1:  #we are grid tied, run charge code. This may have to change for AC coupled installs
+
+      #no point in running the math below to calculate a new target charge current unless we have an update from the inverters
+      #which is slow. Like every 12 seconds. 
+      #global SMAupdate  
+      #if SMAupdate == True:
+      #  SMAupdate = False
 
       #requested charge current varies by time of day and SoC value
       #for now, some rules to change charge behavior hard coded for my application.
       #Gonna try making these charge current targets inlcuding solar, so we need to subtract solar current later. 
       if now.hour >= 14 and now.hour <=22:
-        if now.hour >= 17 and Soc < 39:
+        if now.hour >= 17 and Soc < 49:
           Req_Charge_A = 175.0
         else:
           Req_Charge_A = 100.0
       else:
         Req_Charge_A = 4.0
 
-      if Soc < 10:  #recovering from blackout? Charge fast! 
-        Req_Charge_A = 175.0
+      if Soc < 15:  #recovering from blackout? Charge fast! 
+        Req_Charge_A = 200.0
 
-      #compare requested charge current to present battery current. 
-      if Batt_C > 0: # only if we are charging 
-        if Batt_C > Req_Charge_A + 10:  #if solar is charging us the speed we want, don't add to it. 
-          Req_Charge_A = 0;
-        else:
-          Req_Charge_A = (Req_Charge_A - Batt_C) + (Battery["Current"] *-1)
-
+      #subtract any active Solar current from the requested charge current
+      Req_Charge_A = Req_Charge_A - PV_C
 
       #Poor mans CC-CV charger. Since the SMA charge controler is disabled in Li-ion mode
       # we have to pretend to be one, assuming the inverter has been forced on grid by user. 
@@ -295,8 +289,13 @@ class SmaDriver:
           Req_Charge_A = (Battery["Current"] *-1) - 5  #this works in tenths of Amps at this level remember
         else:
           Req_Charge_A = (Battery["Current"] *-1)
+      
+
       if Req_Charge_A < 0:
         Req_Charge_A = 0;
+
+    else:
+      Req_Charge_A = 3;
     
    #Low battery safety, if low voltage, pre-empt SoC with minimum value to force grid transfer
     if Line1["ExtVoltage"] > 100 and Batt_V < 49.6:
@@ -328,7 +327,7 @@ class SmaDriver:
       data=[0x00, 0x00, 0x00, 0x0, 0xf0, 0x00],
       is_extended_id=False)
     msg4 = can.Message(arbitration_id=0x35a,
-      data=[0x00, 0x00, 0x00, 0x0, 0x01, 0x00, 0x00, 0x00],
+      data=[0x00, 0x00, 0x00, 0x0, 0x00, 0x00, 0x00, 0x00],
       is_extended_id=False)
     msg5 = can.Message(arbitration_id=0x35e,
       data=[0x42, 0x41, 0x54, 0x52, 0x49, 0x55, 0x4d, 0x20],
