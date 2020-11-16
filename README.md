@@ -6,7 +6,10 @@ install directory includes the driver folder and everything that is needed.
 include directory has changes to serial-starter as required to make this plug and play. 
 
 See https://github.com/victronenergy/venus/wiki/howto-add-a-driver-to-Venus for info.
+
 See https://www.victronenergy.com/live/ccgx:root_access#:~:text=Go%20to%20Settings%2C%20General,Access%20Level%20change%20to%20Superuser for the way to gain root access to your Venus OS device. 
+
+See https://github.com/victronenergy/venus/wiki/installing-additional-python-modules to add python modules needed for this driver to work. Like python-can . 
 
 TODO list:
  1)	Proper charge controller state machine
