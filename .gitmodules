@@ -1,3 +1,0 @@
-[submodule "velib_python"]
-	path = velib_python
-	url = https://github.com/victronenergy/velib_python.git
