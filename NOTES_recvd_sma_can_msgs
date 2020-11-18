@@ -1,0 +1,51 @@
+0x300
+First 2 bytes Master total external grid power 0.1s of kW
+Second 2 bytes, Slave total external grid power 0.1s of kW
+
+0x301 
+First 2 bytes, Master total inverter power 0.1s of kW
+Second 2 bytes, Slave total inverter power 0.1s of kW
+
+0x302
+First two bytes, External tenths of kvar master
+Next two bytes, External tenths of kvar slave
+
+0x303
+First two bytes, Inverter tenths of kvar master
+Next two bytes, Inverter tenths of kvar slave
+
+0x304 
+First two bytes output voltage master
+Next two bytes output voltage slave 1?
+Next two bytes output voltage slave 2?
+Last two bytes output frequency
+
+0x305
+First two bytes, DC voltage
+Second 2 bytes, DC current combined system,  signed 16bit 0.1A
+Last 4 bytes unknown, always seem to be E6,00,DE,03
+
+0x306
+Byte 7: Ext relay closed = 0x58  open = 0x4e
+There’s likely more info here, possibly bitwise
+
+0x308
+(Guess) first two bytes is total Load power. 
+
+0x309 
+First two bytes input voltage
+Next two bytes input voltage slave 1?
+Next two bytes input voltage slave 2?
+last two bytes grid frequency LSB 0.01Hz
+
+0x351
+Bytes 1,2 Charge voltage goal. 0.1V Not sure the Sunny Island does anything with this. I suspect it errors out if battery goes above this
+Bytes 3,4 Requested charge current, 0.1A
+Bytes 5,6 Requested discharge current. 0.1A. Don’t think SunnyIsland does anything with this. 
+Bytes 7,8 Discharge voltage. 0.1V. Not sure the Sunny Island does anything with this. I suspect it errors out if battery goes below this. 
+
+0x355
+Byte 1,2 SoC 1%
+Byte 3,4 SoH 1%
+Bytes 5,6 SoC 0.01%
+

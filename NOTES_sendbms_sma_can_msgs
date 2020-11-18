@@ -1,0 +1,72 @@
+BMS CAN Messages sent to inverter
+
+Data extracted from: http://www.rec-bms.com/datasheet/UserManual9R_SMA.pdf
+
+CAN messages are sent each measuring cycle with 100 ms interval between. 
+
+CAN message 0x351:
+Byte  Description                     Type              Property
+1     Charge voltage low byte         Unsigned integer  LSB = 0.1V
+2     Charge voltage high byte
+3     Max charging current low byte   Signed integer    LSB = 0.1A
+4     Max charging current high byte
+5     Max charging current low byte   Signed integer    LSB = 0.1A
+6     Max charging current high byte
+7     Discharge voltage low byte      Unsigned integer  LSB = 0.1V
+8     Discharge voltage high byte
+
+CAN message 0x355:
+Byte  Description                     Type              Property
+1     SOC low byte                    Unsigned integer  LSB = 1%
+2     SOC high byte
+3     SOH  low byte                   Unsigned integer  LSB = 1%
+4     SOH high byte
+5     SOC high definition low byte    Unsigned integer  LSB = 0.01%
+6     SOC high definition high byte
+
+CAN message 0x356:
+Byte  Description                     Type              Property
+1     Battery voltage low byte        Signed integer    LSB = 0.01V
+2     Battery voltage high byte
+3     Battery current  low byte       Signed integer    LSB = 0.1A
+4     Battery current  high byte
+5     Battery temperature  low byte   Signed integer    LSB = 0.1°C
+6     Battery temperature high byte
+
+CAN message 0x35A:
+Byte  Description      Type              Property
+1     Alarm byte 1     Unsigned char     Bit orientated Alarm structure
+2     Alarm byte 2     Unsigned char
+3     Alarm byte 3     Unsigned char
+4     Alarm byte 4     Unsigned char
+5     Warning byte 1   Unsigned char     Bit orientated Warning structure
+6     Warning byte 2   Unsigned char
+7     Warning byte 3   Unsigned char
+8     Warning byte 4   Unsigned char 
+
+CAN message 0x35E:
+Byte  Description     Type              Property
+1     Byte 1          ASCII             BMS OEM description: ABCDEFG 
+2     Byte 2          ASCII
+3     Byte 3          ASCII
+4     Byte 4          ASCII
+5     Byte 5          ASCII
+6     Byte 6          ASCII
+7     Byte 7          ASCII
+8     Byte 8          ASCII
+
+CAN message 0x35F:
+Byte  Description                 Type                Property
+1     Cell chemistry low byte     Unsigned integer
+2     Cell chemistry high byte
+3     Hardware version low byte   Byte
+4     Hardware version high byte  Byte
+5     Capacity low byte           Unsigned integer    LSB = 1 Ah
+6     Capacity high byte
+7     Software version low byte   Byte                Version: 01
+8     Software version high byte  Byte
+
+
+
+
+
