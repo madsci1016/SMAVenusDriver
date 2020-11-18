@@ -3,6 +3,8 @@ A driver to integrate SMA SunnyIsland inverters with Victron Venus OS
 
 THIS IS A WORK IN PROGRESS -- YMMV, NO WARRANTY EXPRESSED OR IMPLIED
 
+clone with git clone --recurse-submodules in order to get the velib_python submodule
+
 ### Install
 install directory includes the driver folder and everything that is needed. 
 
