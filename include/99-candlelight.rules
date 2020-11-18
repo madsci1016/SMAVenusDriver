@@ -1,0 +1,2 @@
+# get SerialNumber by running usb-devices cmd
+SUBSYSTEM=="net", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="606f", ATTRS{serial}=="000D003B5952431220303835", NAME="can5", RUN+="/sbin/ip link set '%k' up type can bitrate 500000"
