@@ -18,8 +18,9 @@ See https://www.victronenergy.com/live/ccgx:root_access#:~:text=Go%20to%20Settin
 See https://github.com/victronenergy/venus/wiki/installing-additional-python-modules to add python modules needed for this driver to work. Like python-can .
 
 ### SMA
+SMA SI Manual: https://files.sma.de/downloads/SI4548-6048-US-BE-en-21W.pdf
 
-
+Page 53, Section 6.4.2 Connecting the Data Cable of the Lithium-Ion Batteries details where to connect the RJ45 CAN cable
 
 ## Todo List
 
@@ -30,6 +31,8 @@ See https://github.com/victronenergy/venus/wiki/installing-additional-python-mod
  5)	Get logging working correctly. 
 
 ## CAN Bus
+The Controller Area Network (CAN bus) is used at a rate of 500 kbs.
+
 ### CAN Adapter
 The SMA SI use the CAN bus to communicate between master/slave and other devices. In order to participate on the CAN bus, you must have a CAN adapter. The CAN adapter I use is the open source USB CANable device (https://canable.io/). I'm using the Pro version since it adds galvanic isolation, but either will work. The firmware installed from ProtoFusion store is slcan, which emmulates a tty serial device. I've had issues with this being stable within this environment. I'm not sure if it is buffer or timing issues. However, by installing the candlelight firmware, the adapter becomes a socketcan device and works like a network adapter. This method is rock solid in my usage.
 
@@ -48,9 +51,9 @@ For a T-568B RJ45 pinout, the pins and colors are:
 
 The pins of interest are:
 
-GND - Pin 2
-CAN_H - Pin 4
-CAN_L - Pin 5
+* CAN_GND - Pin 2
+* CAN_H - Pin 4
+* CAN_L - Pin 5
 
 It is worth noting that there is a terminating resistor on both the CAN and SYNC lines as part of the SMA RJ-45 terminator dongle. However, in my experience terminating the CAN bus alone has not caused any issues with Master/Slave comms.
 
