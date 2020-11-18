@@ -3,8 +3,6 @@ A driver to integrate SMA SunnyIsland inverters with Victron Venus OS
 
 THIS IS A WORK IN PROGRESS -- YMMV, NO WARRANTY EXPRESSED OR IMPLIED
 
-clone with git clone --recurse-submodules in order to get the velib_python submodule
-
 ### Install
 dbus-sma directory is the directory that needs to be copied to or symlinked into the /opt/victronenergy directory. 
 
