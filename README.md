@@ -4,9 +4,24 @@ A driver to integrate SMA SunnyIsland inverters with Victron Venus OS
 THIS IS A WORK IN PROGRESS -- YMMV, NO WARRANTY EXPRESSED OR IMPLIED
 
 ### Install
-dbus-sma directory is the directory that needs to be copied to or symlinked into the /opt/victronenergy directory. 
+dbus-sma directory is the directory that needs to be copied to /data/etc 
+include directory has misc files needed to setup the driver to make it plug and play. 
 
-include directory has changes to serial-starter as required to make this plug and play. 
+Depending on the CAN adapter used or how configured, install of driver is slightly different
+#### slcan (tty)
+This method uses the VE Serial Starter method as described on their wiki below.
+TBD instructions
+
+#### socketcan (socket)
+This method uses daemontools (https://cr.yp.to/daemontools.html) to supervise and start the driver aka service.
+
+1. To bring up the canable CAN adapter automatically, copy the include/99-candlelight.rules to the /etc/udev/rules.d directory
+2. Modify the 99-candlelight.rules file with the serial number of your device.
+	Execute: usb-devices | grep -A2 canable.io
+3. Copy the dbus-sma directory to /data/etc (copying items to the /data directory keeps them from being overwritten when VenusOS is updated)
+4. Make a symbolic link in the /service directory to the /data/etc/dbus-sma/service with the name dbus-sma
+	> ln -s /data/etc/dbus-sma/service /service/dbus-sma
+6. Important: Make sure that there isn't a /data/etc/dbus-sma/service/down file. This keeps the service from starting automatically (used for serial-starter)
 
 ## Useful Reading
 
