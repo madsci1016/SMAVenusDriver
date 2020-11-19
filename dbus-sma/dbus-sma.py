@@ -41,14 +41,16 @@ from dbusmonitor import DbusMonitor
 # ignore terminal resize signals (keeps exception from being thrown)
 signal.signal(signal.SIGWINCH, signal.SIG_IGN)
 
+
 softwareVersion = '1.1'
 logger = logging.getLogger("dbus-sma")
 
 # global logger for all modules imported here
 #logger = logging.getLogger()
 
-logger.setLevel(logging.DEBUG)
-#logger.setLevel(logging.INFO)
+#logging.basicConfig(filename='/data/etc/dbus-sma/logging.log', encoding='utf-8', level=logging.INFO)
+#logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 
 # The CANable (https://canable.io/) is a small open-source USB to CAN adapter. The CANable can show up as a virtual serial port (slcan): /dev/ttyACM0 or
@@ -101,7 +103,7 @@ class BMSData:
     self.min_battery_voltage = min_battery_voltage
     self.max_charge_amps = max_charge_amps
     self.max_discharge_amps = max_discharge_amps
-    self.state_of_charge = 42  # sane initial value
+    self.state_of_charge = 42.0  # sane initial value
     self.actual_battery_voltage = 0.0
     self.req_charge_amps = 0.0
     self.req_discharge_amps = 0.0
@@ -384,14 +386,14 @@ class SmaDriver:
     #for now, some rules to change charge behavior hard coded for my application.
     #Gonna try making these charge current targets inlcuding solar, so we need to subtract solar current later. 
     if now.hour >= 14 and now.hour <=22:
-      if now.hour >= 17 and self._bms_data.state_of_charge < 49:
+      if now.hour >= 17 and self._bms_data.state_of_charge < 49.0:
         self._bms_data.req_charge_amps = 175.0
       else:
         self._bms_data.req_charge_amps = 100.0
     else:
       self._bms_data.req_charge_amps = 4.0
 
-    if self._bms_data.state_of_charge < 15:  #recovering from blackout? Charge fast! 
+    if self._bms_data.state_of_charge < 15.0:  #recovering from blackout? Charge fast! 
       self._bms_data.req_charge_amps = 200.0
     
    #subtract any active Solar current from the requested charge current
@@ -417,7 +419,7 @@ class SmaDriver:
     
    #Low battery safety, if low voltage, pre-empt SoC with minimum value to force grid transfer
     if Line1["ExtVoltage"] > 100 and self._bms_data.actual_battery_voltage < 49.6:
-      self._bms_data.state_of_charge = 1.00
+      self._bms_data.state_of_charge = 1.0
 
     #logger.debug(self._bms_data.req_charge_amps) 
   
@@ -438,10 +440,10 @@ class SmaDriver:
     out_batt_msg = "Batt Voltage: {0}, Batt Current: {1}" \
       .format(Battery["Voltage"], Battery["Current"])
 
-    logger.debug(out_load_msg)
-    logger.debug(out_ext_msg)
-    logger.debug(out_inv_msg)
-    logger.debug(out_batt_msg)
+    logger.info(out_load_msg)
+    logger.info(out_ext_msg)
+    logger.info(out_inv_msg)
+    logger.info(out_batt_msg)
 
     
     #get some data from the Victron BUS
@@ -451,7 +453,7 @@ class SmaDriver:
     self._bms_data.pv_current = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Pv/Current')
 
 #    logger.debug("SoC: {0:.2f}%, Batt Voltage: {1:.2f}V, Batt Current: {2:.1f}A". \
-    logger.debug("SoC: {0}%, Batt Voltage: {1}V, Batt Current: {2}A". \
+    logger.info("SoC: {0}%, Batt Voltage: {1}V, Batt Current: {2}A". \
         format(self._bms_data.state_of_charge, self._bms_data.actual_battery_voltage, self._bms_data.battery_current))
     
     req_charge_amps = 0
@@ -527,7 +529,7 @@ class SmaDriver:
       self._can_bus.send(msg6)
       #logger.debug("Message sent on {}".format(self._can_bus.channel_info))
 
-      logger.debug("Sent 6 messages on {}".format(self._can_bus.channel_info))
+      logger.info("Sent 6 messages on {}".format(self._can_bus.channel_info))
     except (can.CanError) as e:
       logger.error("CAN BUS Transmit error (is controller missing?): %s" % e.message)
     except KeyboardInterrupt:

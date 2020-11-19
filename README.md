@@ -22,6 +22,9 @@ This method uses daemontools (https://cr.yp.to/daemontools.html) to supervise an
 4. Make a symbolic link in the /service directory to the /data/etc/dbus-sma/service with the name dbus-sma
 	> ln -s /data/etc/dbus-sma/service /service/dbus-sma
 6. Important: Make sure that there isn't a /data/etc/dbus-sma/service/down file. This keeps the service from starting automatically (used for serial-starter)
+7. To enable service logging, remove the /data/etc/dbus-sma/service/down file. To watch logs in real time:
+	> tail -F /var/log/dbus-sma/current
+
 
 ## Useful Reading
 
