@@ -103,3 +103,14 @@ So the Victron system (or whatever you use this code with) will needs its own ba
 Also note right now there’s a bunch of stuff hard-coded for my application, which is an off-grid (with grid available during low battery) with DC tied solar setup. I can’t test AC tied solar yet. 
 
 In case it wasn’t obvious, one fall back with this hack is if the Raspberry pi crashes or shuts off, the inverters will shut off as well. I recommend you have an offline back-up raspberry pi setup and ready to go to swap out in that event. 
+
+## Tidbits
+
+To determine if the driver is running execute:
+> ps | grep dbus-sma
+```
+  supervise dbus-sma
+  multilog t s25000 n4 /var/log/dbus-sma   <-- this will show up if logging is enabled
+  python /data/etc/dbus-sma/dbus-sma.py
+  grep dbus-sma
+```
