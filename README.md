@@ -32,7 +32,7 @@ See https://www.victronenergy.com/live/ccgx:root_access#:~:text=Go%20to%20Settin
 
 See https://github.com/victronenergy/venus/wiki/installing-additional-python-modules to add python modules needed for this driver to work. Like python-can .
 
-### SMA
+#### SMA
 SMA SI Manual: https://files.sma.de/downloads/SI4548-6048-US-BE-en-21W.pdf
 
 Page 53, Section 6.4.2 Connecting the Data Cable of the Lithium-Ion Batteries details where to connect the RJ45 CAN cable
