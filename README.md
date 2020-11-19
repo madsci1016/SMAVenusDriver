@@ -51,6 +51,8 @@ Page 53, Section 6.4.2 Connecting the Data Cable of the Lithium-Ion Batteries de
 ## CAN Bus
 The Controller Area Network (CAN bus) is used at a rate of 500 kbs.
 
+NOTE: The SMA SI will go into hard shutdown mode if it hasn't received a good BMS message after several minutes. If this happens you will need to power off the DC side of the inverter and wait for 15-30 min capacitors to drain. If the cover is off, you can monitor the red LED located left and down of the center control panel. When it goes off it can be powered on.
+
 ### CAN Adapter
 The SMA SI use the CAN bus to communicate between master/slave and other devices. In order to participate on the CAN bus, you must have a CAN adapter. The CAN adapter I use is the open source USB CANable device (https://canable.io/). I'm using the Pro version since it adds galvanic isolation, but either will work. The firmware installed from ProtoFusion store is slcan, which emmulates a tty serial device. I've had issues with this being stable within this environment. I'm not sure if it is buffer or timing issues. However, by installing the candlelight firmware, the adapter becomes a socketcan device and works like a network adapter. This method is rock solid in my usage.
 
@@ -106,7 +108,7 @@ In case it wasn’t obvious, one fall back with this hack is if the Raspberry pi
 
 ## Tidbits
 
-To determine if the driver is running execute:
+###### To determine if the driver is running execute:
 > ps | grep dbus-sma
 ```
   supervise dbus-sma
@@ -114,3 +116,21 @@ To determine if the driver is running execute:
   python /data/etc/dbus-sma/dbus-sma.py
   grep dbus-sma
 ```
+
+###### For debugging the script
+1. Make sure the service auto start is disabled. Go to the /data/etc/dbus-sma directory.
+2. Add the "down" file in ./service directory
+```
+	touch ./service/down   <-- creates an empty file named "down"
+```
+3. Stop the service if is running by:
+```
+	svc -d /service/dbus-sma
+	svstat /service/dbus-sma   <-- checks if it is running, you can also do the ps cmd above
+```
+4. If you are using ssh to remote to the shell, you might want to be able to connect/disconnect the shell without disturbing the process. For that use "screen", a terminal multiplexer.
+	1. screen  <-- starts a new screen
+	2. CTRL+A,D  <-- disconnects from running screen
+	3. screen -r  <-- reattaches to running screen
+5. Now run the script: python dbus-sma.py
+6. TBD logging... 
