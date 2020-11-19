@@ -4,8 +4,8 @@ A driver to integrate SMA SunnyIsland inverters with Victron Venus OS
 THIS IS A WORK IN PROGRESS -- YMMV, NO WARRANTY EXPRESSED OR IMPLIED
 
 ### Install
-dbus-sma directory is the directory that needs to be copied to /data/etc 
-include directory has misc files needed to setup the driver to make it plug and play. 
+* dbus-sma directory is the directory that needs to be copied to /data/etc 
+* include directory has misc files needed to setup the driver to make it plug and play. 
 
 Depending on the CAN adapter used or how configured, install of driver is slightly different
 #### slcan (tty)
