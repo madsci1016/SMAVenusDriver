@@ -151,6 +151,8 @@ class SmaDriver:
     # Create the inverter/charger paths
     self._dbusservice.add_path('/Ac/Out/L1/P',            -1)
     self._dbusservice.add_path('/Ac/Out/L2/P',            -1)
+    self._dbusservice.add_path('/Ac/Out/L1/I',            -1)
+    self._dbusservice.add_path('/Ac/Out/L2/I',            -1)
     self._dbusservice.add_path('/Ac/Out/L1/V',            -1)
     self._dbusservice.add_path('/Ac/Out/L2/V',            -1)
     self._dbusservice.add_path('/Ac/Out/L1/F',            -1)
@@ -316,13 +318,23 @@ class SmaDriver:
     self._dbusservice["/Dc/0/Voltage"] = Battery["Voltage"]
     self._dbusservice["/Dc/0/Current"] = Battery["Current"] *-1
     self._dbusservice["/Dc/0/Power"] = Battery["Current"] * Battery["Voltage"] *-1
-    self._dbusservice["/Ac/Out/L1/P"] = Line1["ExtPwr"] + Line1["InvPwr"]
-    self._dbusservice["/Ac/Out/L2/P"] = Line2["ExtPwr"] + Line2["InvPwr"] 
+    
+    #TODO: jaedog: verify that the sum of external and inverter power is correct
+    
+    line1_inv_outpwr = Line1["ExtPwr"] + Line1["InvPwr"]
+    line2_inv_outpwr = Line2["ExtPwr"] + Line2["InvPwr"] 
+    self._dbusservice["/Ac/Out/L1/P"] = line1_inv_outpwr
+    self._dbusservice["/Ac/Out/L2/P"] = line2_inv_outpwr
     self._dbusservice["/Ac/Out/P"] =  System["Load"] 
     self._dbusservice["/Ac/Out/L1/F"] = Line1["OutputFreq"]
     self._dbusservice["/Ac/Out/L2/F"] = Line1["OutputFreq"]
     self._dbusservice["/Ac/Out/L1/V"] = Line1["OutputVoltage"]
     self._dbusservice["/Ac/Out/L2/V"] = Line2["OutputVoltage"]
+    if Line1["OutputVoltage"] != 0:
+      self._dbusservice["/Ac/Out/L1/I"] = int(line1_inv_outpwr / Line1["OutputVoltage"])
+    if Line2["OutputVoltage"] != 0:
+      self._dbusservice["/Ac/Out/L2/I"] = int(line2_inv_outpwr / Line2["OutputVoltage"])
+
 
     if System["ExtRelay"]:
       self._dbusservice["/Ac/ActiveIn/Connected"] = 1
