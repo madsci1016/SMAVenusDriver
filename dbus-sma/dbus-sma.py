@@ -472,7 +472,7 @@ class SmaDriver:
     req_discharge_amps = 200.0
     
     if System["ExtRelay"] == 1:  #we are grid tied, run charge code. 
-      _execute_bms_charge_logic()
+      self._execute_bms_charge_logic()
 
 
     #breakup some of the values for CAN packing
