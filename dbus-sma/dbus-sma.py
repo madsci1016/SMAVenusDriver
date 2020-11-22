@@ -25,7 +25,7 @@ import can
 from can.bus import BusState
 from timeit import default_timer as timer
 import time
-from datetime import datetime 
+from datetime import datetime, timedelta
 
 # Victron packages
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), 'ext', 'velib_python'))
@@ -114,7 +114,8 @@ class BMSData:
 class SmaDriver:
 
   def __init__(self):
-  
+    self.driver_start_time = datetime.now()
+    
     #Initial BMS values eventually read from settings. 
     #Abs_V = 56.5
     self._bms_data = BMSData(60.0, 46.0, 100.0, 100.0)
@@ -441,7 +442,7 @@ class SmaDriver:
   def _can_bus_txmit_handler(self):
   
     # log data received from SMA on CAN bus (doing it here since this timer is slower!)
-    out_load_msg = "System Load: {0}".format(System["Load"])
+    out_load_msg = "System Load: {0}, Driver runtime: {1}".format(System["Load"], datetime.now() - self.driver_start_time)
 
     out_ext_msg = "Line 1 Ext Voltage: {0}, Line 2 Ext Voltage: {1}, Line 1 Ext Pwr: {2}, Line 2 Ext Pwr: {3}, Freq: {4}" \
       .format(Line1["ExtVoltage"], Line2["ExtVoltage"], Line1["ExtPwr"], Line2["ExtPwr"], Line1["ExtFreq"])
