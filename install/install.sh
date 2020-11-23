@@ -91,6 +91,9 @@ then
 	mkdir -p ${DBUS_SMA_DIR}
 	cp -R  SMAVenusDriver-master/dbus-sma/* ${ROOT_DIR}/data/etc/${DBUS_NAME}
 
+  # replace inverter svg with custom yellow sunny island svg
+  cp SMAVenusDriver-master/assets/overview-inverter.svg ${ROOT_DIR}/opt/victronenergy/themes/ccgx/images
+
 	chmod +x ${ROOT_DIR}/data/etc/${DBUS_NAME}/dbus-sma.py
 	chmod +x ${ROOT_DIR}/data/etc/${DBUS_NAME}/service/run
 	chmod +x ${ROOT_DIR}/data/etc/${DBUS_NAME}//service/log/run
