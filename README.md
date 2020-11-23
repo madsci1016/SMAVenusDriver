@@ -5,7 +5,15 @@ THIS IS A WORK IN PROGRESS -- YMMV, NO WARRANTY EXPRESSED OR IMPLIED
 
 ### Install
 * dbus-sma directory is the directory that needs to be copied to /data/etc 
-* include directory has misc files needed to setup the driver to make it plug and play. 
+* install directory has misc files needed to setup the driver to make it plug and play.
+
+To make things quicker, you can use the install.sh script:
+1. from root login on the venus root home directory
+2. wget https://github.com/jaedog/SMAVenusDriver/raw/master/install/install.sh
+3. chmod +x install.sh
+4. ./install.sh
+5. answer Y to the install of the driver
+6. answer Y to the dependencies (unless they are already installed)
 
 Depending on the CAN adapter used or how configured, install of driver is slightly different
 #### slcan (tty)
