@@ -2,6 +2,7 @@
 A driver to integrate SMA SunnyIsland inverters with Victron Venus OS
 
 THIS IS A WORK IN PROGRESS -- YMMV, NO WARRANTY EXPRESSED OR IMPLIED
+
 Tested with RPi 3B - v2.60 Build 20200906135923
 
 ### Install
@@ -20,6 +21,7 @@ To make things quicker, you can use the install.sh script:
 Depending on the CAN adapter used or how configured, install of driver is slightly different
 #### slcan (tty)
 This method uses the VE Serial Starter method as described on their wiki below.
+
 Unsupported by default
 
 #### socketcan (socket)
