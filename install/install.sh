@@ -24,18 +24,24 @@ read -p "[Y to proceed] " -n 1 -r
 echo    # (optional) move to a new line
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
+  echo "Install dependencies (pip and python libs)?"
+  read -p "[Y to proceed] " -n 1 -r
+  echo    # (optional) move to a new line
+  if [[ $REPLY =~ ^[Yy]$ ]]
+  then
 
-	echo "==== Download and install dependencies ===="
-  opkg update
-  opkg install python-misc python-distutils python-numbers python-html python-ctypes python-pkgutil
-  opkg install python-unittest python-difflib python-compile gcc binutils python-dev python-unixadmin python-xmlrpc
+    echo "==== Download and install dependencies ===="
+    opkg update
+    opkg install python-misc python-distutils python-numbers python-html python-ctypes python-pkgutil
+    opkg install python-unittest python-difflib python-compile gcc binutils python-dev python-unixadmin python-xmlrpc
 
-  wget https://bootstrap.pypa.io/get-pip.py
-  python get-pip.py
-  rm get-pip.py
+    wget https://bootstrap.pypa.io/get-pip.py
+    python get-pip.py
+    rm get-pip.py
 
-  pip install python-can
-  pip install python-statemachine
+    pip install python-can
+    pip install python-statemachine
+  fi
 
 	echo "==== Download driver and library ===="
 
