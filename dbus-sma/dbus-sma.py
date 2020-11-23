@@ -232,7 +232,7 @@ class SmaDriver:
 
   # callback that gets called ever time a dbus value has changed
   def _dbus_value_changed(self, dbusServiceName, dbusPath, dict, changes, deviceInstance):
-		self._changed = True
+    self._changed = True
 
   # called by timer every 20 msec
   def _parse_can_data_handler(self):
@@ -459,11 +459,22 @@ class SmaDriver:
     logger.info(out_batt_msg)
 
     
-    #get some data from the Victron BUS
-    self._bms_data.state_of_charge = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Soc')
-    self._bms_data.actual_battery_voltage = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Voltage')
-    self._bms_data.battery_current = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Current')
-    self._bms_data.pv_current = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Pv/Current')
+    #get some data from the Victron BUS, invalid data returns NoneType
+    soc = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Soc')
+    volt = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Voltage')
+    current = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Current')
+    pv_current = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Pv/Current')
+
+    # if we don't have these values, there is nothing to do!
+    if (soc == None or volt == None or current == None):
+      logger.error("DBusMonitor returning None for one or more: SOC: {0}, Volt: {1}, Current: {2}, PVCurrent: {3}" \
+          .format(soc, volt, current, pv_current))
+      return True
+
+    self._bms_data.state_of_charge = soc
+    self._bms_data.actual_battery_voltage = volt
+    self._bms_data.battery_current = current
+    self._bms_data.pv_current = pv_current
 
 #    logger.debug("SoC: {0:.2f}%, Batt Voltage: {1:.2f}V, Batt Current: {2:.1f}A". \
     logger.info("SoC: {0}%, Batt Voltage: {1}V, Batt Current: {2}A". \
