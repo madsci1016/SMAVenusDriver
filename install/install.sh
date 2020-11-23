@@ -47,7 +47,7 @@ then
 
   error_msg="WARNING: Was unable to modify 99-candlelight.rules with device serial number automatically"
 
-  template_udev_file="SMAVenusDriver-master/include/99-candlelight.rules"
+  template_udev_file="SMAVenusDriver-master/install/99-candlelight.rules"
   udev_file="${ROOT_DIR}/etc/udev/rules.d/99-candlelight.rules"
   cp $template_udev_file $udev_file
 
