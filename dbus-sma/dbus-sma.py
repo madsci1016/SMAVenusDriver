@@ -105,8 +105,8 @@ class BMSData:
     self.max_discharge_amps = max_discharge_amps
     self.state_of_charge = 42.0  # sane initial value
     self.actual_battery_voltage = 0.0
-    self.req_charge_amps = 0.0
-    self.req_discharge_amps = 0.0
+    self.req_charge_amps = 160.0
+    self.req_discharge_amps = 200.0
     self.battery_current = 0.0
     self.pv_current = 0.0
 
@@ -444,10 +444,10 @@ class SmaDriver:
     # log data received from SMA on CAN bus (doing it here since this timer is slower!)
     out_load_msg = "System Load: {0}, Driver runtime: {1}".format(System["Load"], datetime.now() - self.driver_start_time)
 
-    out_ext_msg = "Line 1 Ext Voltage: {0}, Line 2 Ext Voltage: {1}, Line 1 Ext Pwr: {2}, Line 2 Ext Pwr: {3}, Freq: {4}" \
+    out_ext_msg = "External, Line 1: {0}V, Line 2: {1}V, Line 1 Pwr: {2}W, Line 2 Pwr: {3}W, Freq: {4}" \
       .format(Line1["ExtVoltage"], Line2["ExtVoltage"], Line1["ExtPwr"], Line2["ExtPwr"], Line1["ExtFreq"])
 
-    out_inv_msg = "Line 1 Inv Voltage: {0}, Line 2 Inv Voltage: {1}, Line 1 Inv Pwr: {2}, Line 2 Inv Pwr: {3}, Freq: {4}" \
+    out_inv_msg = "Inverter, Line 1: {0}V, Line 2: {1}V, Line 1 Pwr: {2}W, Line 2 Pwr: {3}W, Freq: {4}" \
       .format(Line1["OutputVoltage"], Line2["OutputVoltage"], Line1["InvPwr"], Line2["InvPwr"], Line1["OutputFreq"])
 
     out_batt_msg = "Batt Voltage: {0}, Batt Current: {1}" \
@@ -456,7 +456,9 @@ class SmaDriver:
     logger.info(out_load_msg)
     logger.info(out_ext_msg)
     logger.info(out_inv_msg)
-    logger.info(out_batt_msg)
+    
+    #TODO: jaedog: battery current doesn't match /Dc/Battery/Current
+    #logger.info(out_batt_msg)
 
     
     #get some data from the Victron BUS, invalid data returns NoneType
@@ -477,11 +479,13 @@ class SmaDriver:
     self._bms_data.pv_current = pv_current
 
 #    logger.debug("SoC: {0:.2f}%, Batt Voltage: {1:.2f}V, Batt Current: {2:.1f}A". \
-    logger.info("SoC: {0}%, Batt Voltage: {1}V, Batt Current: {2}A". \
-        format(self._bms_data.state_of_charge, self._bms_data.actual_battery_voltage, self._bms_data.battery_current))
+    logger.info("BMS Send, SoC: {0:.1f}%, Batt Voltage: {1:.2f}V, Batt Current: {2:.2f}A, Req Charge: {3}A, Req Discharge: {4}A, PV Cur: {5} ". \
+        format(self._bms_data.state_of_charge, self._bms_data.actual_battery_voltage, \
+        self._bms_data.battery_current, self._bms_data.req_charge_amps, 
+        self._bms_data.req_discharge_amps, self._bms_data.pv_current))
     
-    req_charge_amps = 0
-    req_discharge_amps = 200.0
+    #req_charge_amps = 20
+    #req_discharge_amps = 200.0
     
     if System["ExtRelay"] == 1:  #we are grid tied, run charge code. 
       self._execute_bms_charge_logic()
@@ -553,7 +557,12 @@ class SmaDriver:
       self._can_bus.send(msg6)
       #logger.debug("Message sent on {}".format(self._can_bus.channel_info))
 
-      logger.info("Sent 6 messages on {}".format(self._can_bus.channel_info))
+      #logger.info("Sent to SI: {0}, {1}, {2}, {3}, {4}". \
+      #  format(self._bms_data.req_discharge_amps, self._bms_data.state_of_charge, \
+      #  self._bms_data.actual_battery_voltage, self._bms_data.battery_current, \
+      #  self._bms_data.pv_current))
+
+      #logger.info("Sent 6 messages on {}".format(self._can_bus.channel_info))
     except (can.CanError) as e:
       logger.error("CAN BUS Transmit error (is controller missing?): %s" % e.message)
     except KeyboardInterrupt:
