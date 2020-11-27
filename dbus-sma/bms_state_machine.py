@@ -20,15 +20,16 @@ from datetime import datetime, timedelta
 
 class BMSChargeStateMachine(StateMachine):
   idle = State("Idle", initial=True)#, value=1)
-  cc_chg = State("ConstCurChg")#, value=2)
-  cv_chg = State("ConstVoltChg")#, value=3)
+  bulk_chg = State("ConstCurChg")#, value=2)
+  absorb_chg = State("ConstVoltChg")#, value=3)
   float_chg = State("FloatChg")#, value=4)
   canceled = State("CancelChg")#, value=5)
 
-  bulk = idle.to(cc_chg)
-  absorb = cc_chg.to(cv_chg)
-  floating = cv_chg.to(float_chg)
-  cancel = canceled.from_(cc_chg, cv_chg, float_chg)
+  bulk = idle.to(bulk_chg)
+  absorb = bulk_chg.to(absorb_chg)
+  floating = absorb_chg.to(float_chg)
+  rebulk = bulk_chg.from_(absorb_chg, float_chg)
+  cancel = canceled.from_(bulk_chg, absorb_chg, float_chg)
 
   # canceled is the final state and cannot be cycled back to idle
   # create a new state machine to restart the charge cycle
@@ -38,13 +39,13 @@ class BMSChargeStateMachine(StateMachine):
     if (getattr(self.model, "on_enter_idle", None) != None):
       self.model.on_enter_idle()
 
-  def on_enter_cc_chg(self):
-    if (getattr(self.model, "on_enter_cc_chg", None) != None):
-      self.model.on_enter_cc_chg()
+  def on_enter_bulk_chg(self):
+    if (getattr(self.model, "on_enter_bulk_chg", None) != None):
+      self.model.on_enter_bulk_chg()
 
-  def on_enter_cv_chg(self):
-    if (getattr(self.model, "on_enter_cv_chg", None) != None):
-      self.model.on_enter_cv_chg()
+  def on_enter_absorb_chg(self):
+    if (getattr(self.model, "on_enter_absorb_chg", None) != None):
+      self.model.on_enter_absorb_chg()
       
   def on_enter_float_chg(self):
     if (getattr(self.model, "on_enter_float_chg", None) != None):
@@ -52,11 +53,13 @@ class BMSChargeStateMachine(StateMachine):
 
 # Charge Model, contains the model of the bms charger
 class BMSChargeModel(object):
-  def __init__(self, charge_cc, charge_cv, charge_float, time_hrs_cv):
-    self.charge_cv = charge_cv
-    self.charge_cc = charge_cc
-    self.charge_float = charge_float
-    self.time_hrs_cv = time_hrs_cv
+  def __init__(self, charge_bulk_current, charge_absorb_voltage, \
+     charge_float_voltage, time_min_absorb, rebulk_voltage):
+    self.charge_absorb_voltage = charge_absorb_voltage
+    self.charge_bulk_current = charge_bulk_current
+    self.charge_float_voltage = charge_float_voltage
+    self.time_min_absorb = time_min_absorb
+    self.rebulk_voltage = rebulk_voltage
 
     self.actual_current = 0.0
     self.actual_voltage = 0.0
@@ -68,12 +71,12 @@ class BMSChargeModel(object):
   def on_enter_idle(self):
     self.check_state = self.check_idle_state
     
-  def on_enter_cc_chg(self):
-    self.check_state = self.check_cc_chg_state
+  def on_enter_bulk_chg(self):
+    self.check_state = self.check_bulk_chg_state
 
-  def on_enter_cv_chg(self):
-    self.check_state = self.check_cv_chg_state
-    self.start_of_cv_chg = datetime.now()
+  def on_enter_absorb_chg(self):
+    self.check_state = self.check_absorb_chg_state
+    self.start_of_absorb_chg = datetime.now()
         
   def on_enter_float_chg(self):
     self.check_state = self.check_float_chg_state
@@ -82,44 +85,61 @@ class BMSChargeModel(object):
   def check_idle_state(self):
     print("check_idle_state")
 
-  def check_cc_chg_state(self):
-    #print("check_cc_chg_state")
-    self.actual_current = self.charge_cc
-    if (self.actual_voltage >= self.charge_cv):
+  def check_bulk_chg_state(self):
+    #print("check_bulk_chg_state")
+    self.actual_current = self.charge_bulk_current
+    if (self.actual_voltage >= self.charge_absorb_voltage):
       self.actual_current = 0
       # move to next state
-      return True
-    return False
+      return 1
+    return 0
 
-  def check_cv_chg_state(self):
-    #print("check_cv_chg_state")
-    if (datetime.now() - self.start_of_cv_chg > timedelta(hours=self.time_hrs_cv)):
-      return True
+  def check_absorb_chg_state(self):
+    #print("check_absorb_chg_state")
 
-    if (self.actual_voltage >= self.charge_cv):
+    # if voltage falls below float voltage, go back to bulk
+    if (self.actual_voltage < self.charge_float_voltage):
+      return -1
+
+    if (datetime.now() - self.start_of_absorb_chg > timedelta(minutes=self.time_min_absorb)):
+      return 1
+
+    if (self.actual_voltage >= self.charge_absorb_voltage):
       self.actual_current = 0.0
-    elif (self.actual_voltage < self.charge_cv):
+    elif (self.actual_voltage < self.charge_absorb_voltage):
       self.actual_current += 0.1
-    return False
+
+    # cap charge current to the bulk_chg state
+    if (self.actual_current > self.charge_bulk_current):
+      self.actual_current = self.charge_bulk_current
+
+    return 0
     
   def check_float_chg_state(self):
     #print("check_float_chg_state")
-    if (self.actual_voltage >= self.charge_float):
+
+    # if voltage falls below rebulk voltage, go back to bulk
+    if (self.actual_voltage < self.rebulk_voltage):
+      return -1
+
+    if (self.actual_voltage >= self.charge_float_voltage):
       self.actual_current = 0.0
-    elif (self.actual_voltage < self.charge_float):
+    elif (self.actual_voltage < self.charge_float_voltage):
       self.actual_current += 0.1
-    return False
+    return 0
     
 # Charge controller, external interface to the bms state machine charger
 class BMSChargeController(object):
-  def __init__(self, charge_cc, charge_cv, charge_float, time_hrs_cv):
-    self.model = BMSChargeModel(charge_cc, charge_cv, charge_float, time_hrs_cv)
+  def __init__(self, charge_bulk_current, charge_absorb_voltage, \
+    charge_float_voltage, time_min_absorb, rebulk_voltage):
+    self.model = BMSChargeModel(charge_bulk_current, charge_absorb_voltage, \
+      charge_float_voltage, time_min_absorb, rebulk_voltage)
     self.state_machine = BMSChargeStateMachine(self.model)
     
   def __str__(self):
     return "BMS Charge Config, CC: {0}A, CV: {1}V, CV Time: {2} hrs, Float: {3}V" \
-      .format(self.model.charge_cc, self.model.charge_cv, self.model.time_hrs_cv, \
-      self.model.charge_float)
+      .format(self.model.charge_bulk_current, self.model.charge_absorb_voltage, \
+        self.model.time_min_absorb, self.model.charge_float_voltage)
     
   def update_battery_voltage(self, voltage):
     self.model.actual_voltage = voltage
@@ -132,8 +152,9 @@ class BMSChargeController(object):
     return False
     
   def is_charging(self):
-    if ((self.state_machine.current_state == self.state_machine.cc_chg) or
-        (self.state_machine.current_state == self.state_machine.cv_chg)):
+    if ((self.state_machine.current_state == self.state_machine.bulk_chg) or
+        (self.state_machine.current_state == self.state_machine.absorb_chg) or
+        (self.state_machine.current_state == self.state_machine.float_chg)):
       return True
     return False
       
@@ -144,8 +165,12 @@ class BMSChargeController(object):
   def check_state(self):
     #print ("check_state")
     val = self.model.check_state()
-    if (val):
+    if (val == 1):
       self.state_machine.cycle()
+    elif (val == -1):
+      # rebulk
+      self.state_machine.rebulk()
+
     return val
     
   def get_charge_current(self):
