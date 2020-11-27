@@ -80,7 +80,7 @@ driver = {
 	'id'          : 2754,
 	'version'     : 476,
 	'serial'      : "SMABillConnect",
-	'connection'  : "com.victronenergy.vebus.ttyACM0"
+	'connection'  : "com.victronenergy.vebus.smasunnyisland"
 }
 
 CAN_tx_msg = {"BatChg": 0x351, "BatSoC": 0x355, "BatVoltageCurrent" : 0x356, "AlarmWarning": 0x35a, "BMSOem": 0x35e, "BatData": 0x35f}
@@ -236,7 +236,7 @@ class SmaDriver:
     dbusservice.add_mandatory_paths(
       processname=__file__,
       processversion=softwareVersion,
-      connection='com.victronenergy.vebus.ttyACM0',
+      connection=driver['connection'],
       deviceinstance=driver['instance'],
       productid=driver['id'],
       productname=driver['name'],
