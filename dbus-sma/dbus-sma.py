@@ -33,6 +33,9 @@ from vedbus import VeDbusService
 from ve_utils import get_vrm_portal_id, exit_on_error
 from dbusmonitor import DbusMonitor
 
+from bms_state_machine import BMSChargeStateMachine, BMSChargeModel, BMSChargeController
+
+
 #from settingsdevice import SettingsDevice
 #from logger import setup_logging
 #import delegates
@@ -98,11 +101,20 @@ def bytes(integer):
     return divmod(integer, 0x100)
 
 class BMSData:
-  def __init__(self, max_battery_voltage, min_battery_voltage, max_charge_amps, max_discharge_amps):
+  def __init__(self, max_battery_voltage, min_battery_voltage, charge_bulk_amps, max_discharge_amps, \
+    charge_absorb_voltage, charge_float_voltage, time_min_absorb, rebulk_voltage):
+    
+    # settings for BMS
     self.max_battery_voltage = max_battery_voltage
     self.min_battery_voltage = min_battery_voltage
-    self.max_charge_amps = max_charge_amps
+    self.charge_bulk_amps = charge_bulk_amps
     self.max_discharge_amps = max_discharge_amps
+    self.charge_absorb_voltage = charge_absorb_voltage
+    self.charge_float_voltage = charge_float_voltage
+    self.time_min_absorb = time_min_absorb
+    self.rebulk_voltage = rebulk_voltage
+    
+    # state of BMS
     self.state_of_charge = 42.0  # sane initial value
     self.actual_battery_voltage = 0.0
     self.req_charge_amps = 160.0
@@ -116,9 +128,16 @@ class SmaDriver:
   def __init__(self):
     self.driver_start_time = datetime.now()
     
+    # TODO: use venus settings to define these values
     #Initial BMS values eventually read from settings. 
-    #Abs_V = 56.5
-    self._bms_data = BMSData(60.0, 46.0, 100.0, 100.0)
+    self._bms_data = BMSData(max_battery_voltage=60.0, min_battery_voltage=46.0, \
+      charge_bulk_amps=160.0, max_discharge_amps=200.0, charge_absorb_voltage=58.4, \
+        charge_float_voltage=54.4, time_min_absorb=120, rebulk_voltage=53.6)
+
+    self.bms_controller = BMSChargeController(charge_bulk_current=self._bms_data.charge_bulk_amps, \
+      charge_absorb_voltage=self._bms_data.charge_absorb_voltage, charge_float_voltage=self._bms_data.charge_float_voltage, \
+        time_min_absorb=self._bms_data.time_min_absorb, rebulk_voltage=self._bms_data.rebulk_voltage)
+    ret = self.bms_controller.start_charging()
 
     # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
     DBusGMainLoop(set_as_default=True)
@@ -437,7 +456,6 @@ class SmaDriver:
     #logger.debug(self._bms_data.req_charge_amps) 
   
   
-  
   	# Called on a two second timer to send CAN messages
   def _can_bus_txmit_handler(self):
   
@@ -479,28 +497,31 @@ class SmaDriver:
     self._bms_data.pv_current = pv_current
 
 #    logger.debug("SoC: {0:.2f}%, Batt Voltage: {1:.2f}V, Batt Current: {2:.1f}A". \
-    logger.info("BMS Send, SoC: {0:.1f}%, Batt Voltage: {1:.2f}V, Batt Current: {2:.2f}A, Req Charge: {3}A, Req Discharge: {4}A, PV Cur: {5} ". \
-        format(self._bms_data.state_of_charge, self._bms_data.actual_battery_voltage, \
-        self._bms_data.battery_current, self._bms_data.req_charge_amps, 
-        self._bms_data.req_discharge_amps, self._bms_data.pv_current))
-    
-    #req_charge_amps = 20
-    #req_discharge_amps = 200.0
-    
-    if System["ExtRelay"] == 1:  #we are grid tied, run charge code. 
-      self._execute_bms_charge_logic()
 
+    # TODO: need to figure out how to integrate grid with solar
+    #if System["ExtRelay"] == 1:  #we are grid tied, run charge code. 
+    #  self._execute_bms_charge_logic()
+
+    is_state_changed = self.bms_controller.update_battery_voltage(self._bms_data.actual_battery_voltage)
+    state = self.bms_controller.get_state()
+    charge_current = self.bms_controller.get_charge_current()
+  
+   # logger.info ("Charge Current: {1}, Charge State: {2}, State Changed: {3}".format(charge_current, state, is_state_changed))
+    logger.info("BMS Send, SoC: {0:.1f}%, Batt Voltage: {1:.2f}V, Batt Current: {2:.2f}A, Req Charge: {3}A, Charge State: {4}, Req Discharge: {5}A, PV Cur: {6} ". \
+        format(self._bms_data.state_of_charge, self._bms_data.actual_battery_voltage, \
+        self._bms_data.battery_current, charge_current, state,
+        self._bms_data.req_discharge_amps, self._bms_data.pv_current))
+        
 
     #breakup some of the values for CAN packing
     SoC_HD = int(self._bms_data.state_of_charge*100)
     SoC_HD_H, SoC_HD_L = bytes(SoC_HD)
-    #Req_Charge_HD = int(req_charge_amps*10)
-    Req_Charge_H, Req_Charge_L = bytes(int(self._bms_data.req_charge_amps*10))
-    #Req_Discharge_HD = int(req_discharge_amps*10)
+
+    #Req_Charge_H, Req_Charge_L = bytes(int(self._bms_data.req_charge_amps*10))
+    Req_Charge_H, Req_Charge_L = bytes(int(charge_current*10))
+
     Req_Discharge_H, Req_Discharge_L = bytes(int(self._bms_data.req_discharge_amps*10))
-    #Max_V_HD = int(Max_V*10)
     Max_V_H, Max_V_L = bytes(int(self._bms_data.max_battery_voltage*10))
-    #Min_V_HD = int(Min_V*10)
     Min_V_H, Min_V_L = bytes(int(self._bms_data.min_battery_voltage*10))
 
 
