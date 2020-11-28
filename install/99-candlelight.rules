@@ -1,0 +1,5 @@
+# IMPORTANT:
+# Replace the serial with all zeros with the one for your adapter.
+# Get the adapter SerialNumber by running: usb-devices | grep -A2 canable.io
+
+SUBSYSTEM=="net", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="606f", ATTRS{serial}=="000000000000000000000000", NAME="can5", RUN+="/sbin/ip link set '%k' up type can bitrate 500000"
