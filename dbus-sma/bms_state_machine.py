@@ -144,6 +144,10 @@ class BMSChargeController(object):
   def update_battery_voltage(self, voltage):
     self.model.actual_voltage = voltage
     return self.check_state()
+
+  def update_req_bulk_current(self, current):
+    self.model.charge_bulk_current = current
+
   
   def start_charging(self):
     if (self.state_machine.current_state == self.state_machine.idle):
