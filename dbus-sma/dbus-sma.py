@@ -64,6 +64,8 @@ logger.setLevel(logging.INFO)
 # When the adapter is a socketcan, bring up link first as root:
 # ip link set can0 up type can bitrate 500000
 #
+# To capture CAN msgs on the bus:
+# tcpdump -w capture.pcap -i can5
 
 # TODO: change to input param
 #canBusChannel = "/dev/ttyACM0"
@@ -156,7 +158,8 @@ class SmaDriver:
 		# need them. So just add some dummy data. This can go away when DbusMonitor is more generic.
     dummy = {'code': None, 'whenToLog': 'configChange', 'accessLevel': None}
     dbus_tree = {'com.victronenergy.system': 
-      {'/Dc/Battery/Soc': dummy, '/Dc/Battery/Current': dummy, '/Dc/Pv/Current': dummy, '/Dc/Battery/Voltage': dummy }}
+      {'/Dc/Battery/Soc': dummy, '/Dc/Battery/Current': dummy, '/Dc/Battery/Voltage': dummy, \
+        '/Dc/Pv/Current': dummy, '/Ac/PvOnOutput/L1/Power': dummy, '/Ac/PvOnOutput/L2/Power': dummy, }}
 
     self._dbusmonitor = self._create_dbus_monitor(dbus_tree, valueChangedCallback=self._dbus_value_changed)
 
@@ -339,10 +342,20 @@ class SmaDriver:
     self._dbusservice["/Dc/0/Current"] = Battery["Current"] *-1
     self._dbusservice["/Dc/0/Power"] = Battery["Current"] * Battery["Voltage"] *-1
     
-    #TODO: jaedog: verify that the sum of external and inverter power is correct
-    
-    line1_inv_outpwr = Line1["ExtPwr"] + Line1["InvPwr"]
-    line2_inv_outpwr = Line2["ExtPwr"] + Line2["InvPwr"] 
+    # The SMA inverter only reports power in 100s of watts. To ensure the AC loads 
+    # measurement is correct we need to subtract out the additional PV AC power to the nearest 100 watts
+
+    pv_ac_l1_pwr = self._dbusmonitor.get_value('com.victronenergy.system', '/Ac/PvOnOutput/L1/Power')
+    pv_ac_l2_pwr = self._dbusmonitor.get_value('com.victronenergy.system', '/Ac/PvOnOutput/L2/Power')
+    if (pv_ac_l1_pwr == None):
+      pv_ac_l1_pwr = 0
+    if (pv_ac_l2_pwr == None):
+      pv_ac_l2_pwr = 0
+
+    line1_inv_outpwr = Line1["ExtPwr"] + Line1["InvPwr"] - (pv_ac_l1_pwr % 100)
+    line2_inv_outpwr = Line2["ExtPwr"] + Line2["InvPwr"] - (pv_ac_l2_pwr % 100)
+    #logger.info("Line 1 Inv out: {0}, Line 2 Inv out: {1}".format(line1_inv_outpwr, line2_inv_outpwr))
+
     self._dbusservice["/Ac/Out/L1/P"] = line1_inv_outpwr
     self._dbusservice["/Ac/Out/L2/P"] = line2_inv_outpwr
     self._dbusservice["/Ac/Out/P"] =  System["Load"] 
@@ -484,9 +497,11 @@ class SmaDriver:
     volt = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Voltage')
     current = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Current')
     pv_current = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Pv/Current')
+    pv_ac_l1_pwr = self._dbusmonitor.get_value('com.victronenergy.system', '/Ac/PvOnOutput/L1/Power')
+    pv_ac_l2_pwr = self._dbusmonitor.get_value('com.victronenergy.system', '/Ac/PvOnOutput/L2/Power')
 
     # if we don't have these values, there is nothing to do!
-    if (soc == None or volt == None or current == None):
+    if (soc == None or volt == None):
       logger.error("DBusMonitor returning None for one or more: SOC: {0}, Volt: {1}, Current: {2}, PVCurrent: {3}" \
           .format(soc, volt, current, pv_current))
       return True
