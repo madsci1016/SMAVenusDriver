@@ -515,6 +515,10 @@ class SmaDriver:
       #subtract any active Solar current from the requested charge current
       charge_amps = charge_amps - self._bms_data.pv_current
 
+      # if pv_current is greater than requested charge amps, don't go negative
+      if (charge_amps < 0.0):
+        charge_amps = 0.0
+
     logger.info("Grid Logic: Time: {0}, On Grid: {1} Charge amps: {2}" \
       .format(now, sma_system["ExtRelay"], charge_amps))
 

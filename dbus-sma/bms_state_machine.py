@@ -106,9 +106,11 @@ class BMSChargeModel(object):
       return 1
 
     if (self.actual_voltage >= self.charge_absorb_voltage):
-      self.actual_current = 0.0
+      self.actual_current = 0.6
     elif (self.actual_voltage < self.charge_absorb_voltage):
       self.actual_current += 0.1
+      if (self.actual_current > 4.0):
+        self.actual_current = 4.0
 
     # cap charge current to the bulk_chg state
     if (self.actual_current > self.charge_bulk_current):
@@ -124,7 +126,7 @@ class BMSChargeModel(object):
       return -1
 
     if (self.actual_voltage >= self.charge_float_voltage):
-      self.actual_current = 0.0
+      self.actual_current = 0.6
     elif (self.actual_voltage < self.charge_float_voltage):
       self.actual_current += 0.1
     return 0
