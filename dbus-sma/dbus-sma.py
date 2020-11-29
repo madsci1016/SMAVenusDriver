@@ -119,7 +119,7 @@ class BMSData:
     # state of BMS
     self.state_of_charge = 42.0  # sane initial value
     self.actual_battery_voltage = 0.0
-    self.req_charge_amps = 160.0
+    self.req_charge_amps = 165.0
     self.req_discharge_amps = 200.0
     self.battery_current = 0.0
     self.pv_current = 0.0
@@ -133,7 +133,7 @@ class SmaDriver:
     # TODO: use venus settings to define these values
     #Initial BMS values eventually read from settings. 
     self._bms_data = BMSData(max_battery_voltage=60.0, min_battery_voltage=46.0, \
-      charge_bulk_amps=160.0, max_discharge_amps=200.0, charge_absorb_voltage=58.4, \
+      charge_bulk_amps=164.0, max_discharge_amps=200.0, charge_absorb_voltage=58.4, \
         charge_float_voltage=54.4, time_min_absorb=120, rebulk_voltage=53.6)
 
     self.bms_controller = BMSChargeController(charge_bulk_current=self._bms_data.charge_bulk_amps, \
@@ -412,6 +412,11 @@ class SmaDriver:
       self._dbusservice["/Ac/ActiveIn/ActiveInput"] = 240
       #self._dbusservice["/State"] = 9
 
+    # TODO read BMS state machine and set state here to display charge state
+    # state = 3:Bulk, 4:Absorb, 5:Float, 6:Storage, 7:Equalize, 8:Passthrough 9:Inverting 
+    # maybe it's always 9 if positive energy coming FROM batteries, or any of the others based on state maching
+    # with energy going TOO batteries. Should make it work for both AC/DC coupled
+
   def _energy_handler(self):
     energy_sec = timer() - self._dbusservice["/Energy/Time"]
     self._dbusservice["/Energy/Time"] = timer()
@@ -437,7 +442,7 @@ class SmaDriver:
     return True
 
 # BMS charge logic since SMA is in dumb mode
-  def _execute_bms_charge_logic(self):
+  def _execute_grid_solar_charge_logic(self):
     now = datetime.now()
     
     # SMA Sunny Island Feature:
@@ -466,42 +471,25 @@ class SmaDriver:
     #Gonna try making these charge current targets inlcuding solar, so we need to subtract solar current later. 
     if now.hour >= 14 and now.hour <=22:
       if now.hour >= 17 and self._bms_data.state_of_charge < 49.0:
-        self._bms_data.req_charge_amps = 175.0
+        charge_amps = 175.0
       else:
-        self._bms_data.req_charge_amps = 100.0
+        charge_amps = 100.0
     else:
-      self._bms_data.req_charge_amps = 4.0
+      charge_amps = 4.0
 
     if self._bms_data.state_of_charge < 15.0:  #recovering from blackout? Charge fast! 
-      self._bms_data.req_charge_amps = 200.0
+      charge_amps = 200.0
     
    #subtract any active Solar current from the requested charge current
-    self._bms_data.req_charge_amps = self._bms_data.req_charge_amps - self._bms_data.pv_current
-
-    #Poor mans CC-CV charger. Since the SMA charge controler is disabled in Li-ion mode
-    # we have to pretend to be one, assuming the inverter has been forced on grid by user. 
-    # I need to write a proper CC-CV to float charger state machine, but for now, roll-back current
-    if self._bms_data.actual_battery_voltage > 56:  # grab control of requested current from above code.
-      if self._bms_data.actual_battery_voltage > 56.6:
-        self._bms_data.req_charge_amps = 0;
-      elif self._bms_data.actual_battery_voltage > 56.3:
-        self._bms_data.req_charge_amps = (Battery["Current"] *-1) - 5  #this works in tenths of Amps at this level remember
-      else:
-        self._bms_data.req_charge_amps = (Battery["Current"] *-1)
-    
-
-    if self._bms_data.req_charge_amps < 0:
-      self._bms_data.req_charge_amps = 0;
+    charge_amps = charge_amps - self._bms_data.pv_current
 
 #    else:
 #      self._bms_data.req_charge_amps = 3;
     
-   #Low battery safety, if low voltage, pre-empt SoC with minimum value to force grid transfer
-    if Line1["ExtVoltage"] > 100 and self._bms_data.actual_battery_voltage < 49.6:
-      self._bms_data.state_of_charge = 1.0
 
     #logger.debug(self._bms_data.req_charge_amps) 
-  
+    return charge_amps
+
   
   	# Called on a two second timer to send CAN messages
   def _can_bus_txmit_handler(self):
@@ -551,6 +539,7 @@ class SmaDriver:
     #if System["ExtRelay"] == 1:  #we are grid tied, run charge code. 
     #  self._execute_bms_charge_logic()
 
+    self.bms_controller.update_req_bulk_current(self._execute_grid_solar_charge_logic())
     is_state_changed = self.bms_controller.update_battery_voltage(self._bms_data.actual_battery_voltage)
     state = self.bms_controller.get_state()
     charge_current = self.bms_controller.get_charge_current()
@@ -577,6 +566,10 @@ class SmaDriver:
         self._bms_data.battery_current, charge_current, state,
         self._bms_data.req_discharge_amps, self._bms_data.pv_current))
         
+
+    #Low battery safety, if low voltage, pre-empt SoC with minimum value to force grid transfer
+    if Line1["ExtVoltage"] > 100 and self._bms_data.actual_battery_voltage < 49.6:
+      self._bms_data.state_of_charge = 1.0
 
     #breakup some of the values for CAN packing
     SoC_HD = int(self._bms_data.state_of_charge*100)
