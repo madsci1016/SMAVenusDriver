@@ -147,15 +147,16 @@ class SmaDriver:
     self.driver_start_time = datetime.now()
 
     # data from yaml config file
-    _cfg = self.get_config_data()['BMSData']
+    self._cfg = self.get_config_data()
+    _cfg_bms = self._cfg['BMSData']
 
     # TODO: use venus settings to define these values
     #Initial BMS values eventually read from settings.
-    self._bms_data = BMSData(max_battery_voltage=_cfg['max_battery_voltage'], \
-      min_battery_voltage=_cfg['min_battery_voltage'], low_battery_voltage=_cfg['low_battery_voltage'], \
-      charge_bulk_amps=_cfg['charge_bulk_amps'], max_discharge_amps=_cfg['max_discharge_amps'], \
-      charge_absorb_voltage=_cfg['charge_absorb_voltage'], charge_float_voltage=_cfg['charge_float_voltage'], \
-      time_min_absorb=_cfg['time_min_absorb'], rebulk_voltage=_cfg['rebulk_voltage'])
+    self._bms_data = BMSData(max_battery_voltage=_cfg_bms['max_battery_voltage'], \
+      min_battery_voltage=_cfg_bms['min_battery_voltage'], low_battery_voltage=_cfg_bms['low_battery_voltage'], \
+      charge_bulk_amps=_cfg_bms['charge_bulk_amps'], max_discharge_amps=_cfg_bms['max_discharge_amps'], \
+      charge_absorb_voltage=_cfg_bms['charge_absorb_voltage'], charge_float_voltage=_cfg_bms['charge_float_voltage'], \
+      time_min_absorb=_cfg_bms['time_min_absorb'], rebulk_voltage=_cfg_bms['rebulk_voltage'])
 
     self.bms_controller = BMSChargeController(charge_bulk_current=self._bms_data.charge_bulk_amps, \
       charge_absorb_voltage=self._bms_data.charge_absorb_voltage, charge_float_voltage=self._bms_data.charge_float_voltage, \
@@ -495,17 +496,19 @@ class SmaDriver:
       #if SMAupdate == True:
       #  SMAupdate = False
 
+      _cfg_grid = self._cfg["GridLogic"]
       #requested charge current varies by time of day and SoC value
       #for now, some rules to change charge behavior hard coded for my application.
       #Gonna try making these charge current targets inlcuding solar, so we need to subtract solar current later. 
-      if now.hour >= 14 and now.hour <=22:
-        if now.hour >= 17 and self._bms_data.state_of_charge < 49.0:
-          charge_amps = 175.0
+      if now.hour >= _cfg_grid["start_hour"] and now.hour <= _cfg_grid["end_hour"]:
+        if now.hour >= _cfg_grid["mid_hour"] and self._bms_data.state_of_charge < 49.0:
+          charge_amps = _cfg_grid["mid_hour_current"]
         else:
-          charge_amps = 100.0
+          charge_amps = _cfg_grid["current"]
       else:
-        charge_amps = 4.0
+        charge_amps = _cfg_grid["offtime_current"]
 
+      #TODO: can this use the same value as default bulk current?
       if self._bms_data.state_of_charge < 15.0:  #recovering from blackout? Charge fast! 
         charge_amps = 200.0
 
