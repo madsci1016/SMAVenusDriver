@@ -479,7 +479,7 @@ class SmaDriver:
 
     if self._bms_data.state_of_charge < 15.0:  #recovering from blackout? Charge fast! 
       charge_amps = 200.0
-    
+
    #subtract any active Solar current from the requested charge current
     charge_amps = charge_amps - self._bms_data.pv_current
 
@@ -519,6 +519,9 @@ class SmaDriver:
     volt = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Voltage')
     current = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Battery/Current')
     pv_current = self._dbusmonitor.get_value('com.victronenergy.system', '/Dc/Pv/Current')
+    if (pv_current == None):
+      pv_current = 0.0
+
     pv_ac_l1_pwr = self._dbusmonitor.get_value('com.victronenergy.system', '/Ac/PvOnOutput/L1/Power')
     pv_ac_l2_pwr = self._dbusmonitor.get_value('com.victronenergy.system', '/Ac/PvOnOutput/L2/Power')
 
