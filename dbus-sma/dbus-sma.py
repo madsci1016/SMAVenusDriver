@@ -471,6 +471,7 @@ class SmaDriver:
 #----
   # BMS charge logic since SMA is in dumb mode
   def _execute_grid_solar_charge_logic(self):
+    # time in UTC
     now = datetime.now()
     
     # SMA Sunny Island Feature:
@@ -506,8 +507,11 @@ class SmaDriver:
     if self._bms_data.state_of_charge < 15.0:  #recovering from blackout? Charge fast! 
       charge_amps = 200.0
 
-   #subtract any active Solar current from the requested charge current
+    #subtract any active Solar current from the requested charge current
     charge_amps = charge_amps - self._bms_data.pv_current
+
+    logger.info("Grid Logic: Time:{0}, Charge amps: {1}".format(now, charge_amps))
+
     return charge_amps
   
 #----
@@ -554,7 +558,8 @@ class SmaDriver:
     # update the requested bulk current based on the grid solar charge logic
     self.bms_controller.update_req_bulk_current(self._execute_grid_solar_charge_logic())
 
-    #is_state_changed = self.bms_controller.update_battery_voltage(self._bms_data.actual_battery_voltage)
+    # update the battery voltage for the BMS to determine next state or charge current level
+    is_state_changed = self.bms_controller.update_battery_voltage(self._bms_data.actual_battery_voltage)
     self._bms_data.charging_state = self.bms_controller.get_state()
     charge_current = self.bms_controller.get_charge_current()
   

@@ -147,7 +147,6 @@ class BMSChargeController(object):
 
   def update_req_bulk_current(self, current):
     self.model.charge_bulk_current = current
-
   
   def start_charging(self):
     if (self.state_machine.current_state == self.state_machine.idle):
