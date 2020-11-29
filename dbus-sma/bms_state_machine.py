@@ -57,6 +57,7 @@ class BMSChargeModel(object):
      charge_float_voltage, time_min_absorb, rebulk_voltage):
     self.charge_absorb_voltage = charge_absorb_voltage
     self.charge_bulk_current = charge_bulk_current
+    self.original_bulk_current = charge_bulk_current
     self.charge_float_voltage = charge_float_voltage
     self.time_min_absorb = time_min_absorb
     self.rebulk_voltage = rebulk_voltage
@@ -146,7 +147,10 @@ class BMSChargeController(object):
     return self.check_state()
 
   def update_req_bulk_current(self, current):
-    self.model.charge_bulk_current = current
+    if (current == None):
+      self.model.charge_bulk_current  = self.model.original_bulk_current
+    else:
+      self.model.charge_bulk_current = current
   
   def start_charging(self):
     if (self.state_machine.current_state == self.state_machine.idle):

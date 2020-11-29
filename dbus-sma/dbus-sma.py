@@ -471,9 +471,11 @@ class SmaDriver:
 #----
   # BMS charge logic since SMA is in dumb mode
   def _execute_grid_solar_charge_logic(self):
+    charge_amps = None
+
     # time in UTC
     now = datetime.now()
-    
+
     # SMA Sunny Island Feature:
     # Setting 232# Grid Control
     # Item 41 GdSocEna - Activate the grid request based on SOC (Default: Disable) = Enable
@@ -485,32 +487,33 @@ class SmaDriver:
     # Item 02 GdSocTm1Stp - SOC limit for switching off the utility grid for time 1 = 80%
     # Item 03 GdSocTm2Str - SOC limit for switching on utility grid for time 2 = 40%
     # Item 04 GdSocTm2Stp - SOC limit for switching off the utility grid for time 2 = 80%
-    
 
-    #no point in running the math below to calculate a new target charge current unless we have an update from the inverters
-    #which is slow. Like every 12 seconds. 
-    #global SMAupdate  
-    #if SMAupdate == True:
-    #  SMAupdate = False
+    if (sma_system["ExtRelay"] == 1):
+      #no point in running the math below to calculate a new target charge current unless we have an update from the inverters
+      #which is slow. Like every 12 seconds. 
+      #global SMAupdate  
+      #if SMAupdate == True:
+      #  SMAupdate = False
 
-    #requested charge current varies by time of day and SoC value
-    #for now, some rules to change charge behavior hard coded for my application.
-    #Gonna try making these charge current targets inlcuding solar, so we need to subtract solar current later. 
-    if now.hour >= 14 and now.hour <=22:
-      if now.hour >= 17 and self._bms_data.state_of_charge < 49.0:
-        charge_amps = 175.0
+      #requested charge current varies by time of day and SoC value
+      #for now, some rules to change charge behavior hard coded for my application.
+      #Gonna try making these charge current targets inlcuding solar, so we need to subtract solar current later. 
+      if now.hour >= 14 and now.hour <=22:
+        if now.hour >= 17 and self._bms_data.state_of_charge < 49.0:
+          charge_amps = 175.0
+        else:
+          charge_amps = 100.0
       else:
-        charge_amps = 100.0
-    else:
-      charge_amps = 4.0
+        charge_amps = 4.0
 
-    if self._bms_data.state_of_charge < 15.0:  #recovering from blackout? Charge fast! 
-      charge_amps = 200.0
+      if self._bms_data.state_of_charge < 15.0:  #recovering from blackout? Charge fast! 
+        charge_amps = 200.0
 
-    #subtract any active Solar current from the requested charge current
-    charge_amps = charge_amps - self._bms_data.pv_current
+      #subtract any active Solar current from the requested charge current
+      charge_amps = charge_amps - self._bms_data.pv_current
 
-    logger.info("Grid Logic: Time:{0}, Charge amps: {1}".format(now, charge_amps))
+    logger.info("Grid Logic: Time: {0}, On Grid: {1} Charge amps: {2}" \
+      .format(now, sma_system["ExtRelay"], charge_amps))
 
     return charge_amps
   
