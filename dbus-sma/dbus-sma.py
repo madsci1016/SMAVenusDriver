@@ -166,10 +166,24 @@ class SmaDriver:
     self._dbusservice = self._create_dbus_service()
 
     self._dbusservice.add_path('/Serial',        value=12345)
+
+    # /SystemState/State   ->   0: Off
+    #                      ->   1: Low power
+    #                      ->   2: VE.Bus Fault condition
+    #                      ->   3: Bulk charging
+    #                      ->   4: Absorption charging
+    #                      ->   5: Float charging
+    #                      ->   6: Storage mode
+    #                      ->   7: Equalisation charging
+    #                      ->   8: Passthru
+    #                      ->   9: Inverting
+    #                      ->  10: Assisting
+    #                      -> 256: Discharging
+    #                      -> 257: Sustain
     self._dbusservice.add_path('/State',                   9)
     self._dbusservice.add_path('/Mode',                    3)
     self._dbusservice.add_path('/Ac/PowerMeasurementType', 0)
-    self._dbusservice.add_path('/VebusChargeState',        1)
+    #self._dbusservice.add_path('/VebusChargeState',        1)
 
     # Create the inverter/charger paths
     self._dbusservice.add_path('/Ac/Out/L1/P',            -1)
@@ -197,6 +211,16 @@ class SmaDriver:
     self._dbusservice.add_path('/Dc/0/Power',             -1)
     self._dbusservice.add_path('/Dc/0/Current',           -1)
     self._dbusservice.add_path('/Ac/NumberOfPhases',       2)
+
+    # /VebusChargeState  <- 1. Bulk
+    #                       2. Absorption
+    #                       3. Float
+    #                       4. Storage
+    #                       5. Repeat absorption
+    #                       6. Forced absorption
+    #                       7. Equalise
+    #                       8. Bulk stopped
+    self._dbusservice.add_path('/VebusChargeState',        0)
 
     # Some attempts at logging consumption. Float of kwhr since driver start (i think)
     self._dbusservice.add_path('/Energy/GridToDc',         0)
@@ -352,8 +376,18 @@ class SmaDriver:
     if (pv_ac_l2_pwr == None):
       pv_ac_l2_pwr = 0
 
-    line1_inv_outpwr = Line1["ExtPwr"] + Line1["InvPwr"] - (pv_ac_l1_pwr % 100)
-    line2_inv_outpwr = Line2["ExtPwr"] + Line2["InvPwr"] - (pv_ac_l2_pwr % 100)
+    pv_ac_l1_pwr_10s = (pv_ac_l1_pwr % 100 + 10)
+    pv_ac_l2_pwr_10s = (pv_ac_l2_pwr % 100 + 10)
+
+    # fixup power to offset the SMA inverter
+    if (pv_ac_l1_pwr_10s < 15):
+      pv_ac_l1_pwr_10s = 100
+    if (pv_ac_l2_pwr_10s < 15):
+      pv_ac_l2_pwr_10s = 100
+
+
+    line1_inv_outpwr = Line1["ExtPwr"] + Line1["InvPwr"] - pv_ac_l1_pwr_10s
+    line2_inv_outpwr = Line2["ExtPwr"] + Line2["InvPwr"] - pv_ac_l2_pwr_10s
     #logger.info("Line 1 Inv out: {0}, Line 2 Inv out: {1}".format(line1_inv_outpwr, line2_inv_outpwr))
 
     self._dbusservice["/Ac/Out/L1/P"] = line1_inv_outpwr
@@ -372,11 +406,11 @@ class SmaDriver:
     if System["ExtRelay"]:
       self._dbusservice["/Ac/ActiveIn/Connected"] = 1
       self._dbusservice["/Ac/ActiveIn/ActiveInput"] = 0
-      self._dbusservice["/State"] = 3
+      #self._dbusservice["/State"] = 3
     else:
       self._dbusservice["/Ac/ActiveIn/Connected"] = 0
       self._dbusservice["/Ac/ActiveIn/ActiveInput"] = 240
-      self._dbusservice["/State"] = 9
+      #self._dbusservice["/State"] = 9
 
   def _energy_handler(self):
     energy_sec = timer() - self._dbusservice["/Energy/Time"]
@@ -520,6 +554,22 @@ class SmaDriver:
     is_state_changed = self.bms_controller.update_battery_voltage(self._bms_data.actual_battery_voltage)
     state = self.bms_controller.get_state()
     charge_current = self.bms_controller.get_charge_current()
+
+    # push charge state to dbus
+    vebusChargeState = 0
+    systemState = 9
+    if (state == "bulk_chg"):
+      vebusChargeState = 1
+      systemState = 3
+    elif (state == "absorb_chg"):
+      vebusChargeState = 2
+      systemState = 4
+    elif (state == "float_chg"):
+      vebusChargeState = 3
+      systemState = 5
+
+    self._dbusservice["/VebusChargeState"] = vebusChargeState
+    self._dbusservice["/State"] = systemState
   
    # logger.info ("Charge Current: {1}, Charge State: {2}, State Changed: {3}".format(charge_current, state, is_state_changed))
     logger.info("BMS Send, SoC: {0:.1f}%, Batt Voltage: {1:.2f}V, Batt Current: {2:.2f}A, Req Charge: {3}A, Charge State: {4}, Req Discharge: {5}A, PV Cur: {6} ". \
