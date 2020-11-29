@@ -103,12 +103,23 @@ def bytes(integer):
     return divmod(integer, 0x100)
 
 class BMSData:
-  def __init__(self, max_battery_voltage, min_battery_voltage, charge_bulk_amps, max_discharge_amps, \
-    charge_absorb_voltage, charge_float_voltage, time_min_absorb, rebulk_voltage):
+  def __init__(self, max_battery_voltage, min_battery_voltage, low_battery_voltage, \
+    charge_bulk_amps, max_discharge_amps, charge_absorb_voltage, charge_float_voltage, \
+    time_min_absorb, rebulk_voltage):
     
     # settings for BMS
+
+    # max and min battery voltage is used by the SMA as fault values
+    # if the voltage goes above max or below min, the SMA will fault OFF
+    # the inverter.
     self.max_battery_voltage = max_battery_voltage
     self.min_battery_voltage = min_battery_voltage
+    
+    # low battery voltage is used to trigger the SMA to connect to grid and 
+    # begin charging the batteries. Note, this value must be greater than
+    # the min_battery_voltage
+    self.low_battery_voltage = low_battery_voltage
+    
     self.charge_bulk_amps = charge_bulk_amps
     self.max_discharge_amps = max_discharge_amps
     self.charge_absorb_voltage = charge_absorb_voltage
@@ -133,7 +144,7 @@ class SmaDriver:
     
     # TODO: use venus settings to define these values
     #Initial BMS values eventually read from settings. 
-    self._bms_data = BMSData(max_battery_voltage=60.0, min_battery_voltage=46.0, \
+    self._bms_data = BMSData(max_battery_voltage=60.0, min_battery_voltage=46.0, low_battery_voltage=49.6, \
       charge_bulk_amps=164.0, max_discharge_amps=200.0, charge_absorb_voltage=58.4, \
         charge_float_voltage=54.4, time_min_absorb=120, rebulk_voltage=53.6)
 
@@ -532,31 +543,26 @@ class SmaDriver:
           .format(soc, volt, current, pv_current))
       return True
 
+    # update bms state data
     self._bms_data.state_of_charge = soc
     self._bms_data.actual_battery_voltage = volt
     self._bms_data.battery_current = current
     self._bms_data.pv_current = pv_current
 
-#    logger.debug("SoC: {0:.2f}%, Batt Voltage: {1:.2f}V, Batt Current: {2:.1f}A". \
-
-    # TODO: need to figure out how to integrate grid with solar
-    #if sma_system["ExtRelay"] == 1:  #we are grid tied, run charge code. 
-    #  self._execute_bms_charge_logic()
-
+    # update the requested bulk current based on the grid solar charge logic
     self.bms_controller.update_req_bulk_current(self._execute_grid_solar_charge_logic())
-    is_state_changed = self.bms_controller.update_battery_voltage(self._bms_data.actual_battery_voltage)
+
+    #is_state_changed = self.bms_controller.update_battery_voltage(self._bms_data.actual_battery_voltage)
     self._bms_data.charging_state = self.bms_controller.get_state()
     charge_current = self.bms_controller.get_charge_current()
   
-   # logger.info ("Charge Current: {1}, Charge State: {2}, State Changed: {3}".format(charge_current, state, is_state_changed))
-    logger.info("BMS Send, SoC: {0:.1f}%, Batt Voltage: {1:.2f}V, Batt Current: {2:.2f}A, Req Charge: {3}A, Charge State: {4}, Req Discharge: {5}A, PV Cur: {6} ". \
+    logger.info("BMS Send, SoC: {0:.1f}%, Batt Voltage: {1:.2f}V, Batt Current: {2:.2f}A, Charge State: {3}, Req Charge: {4}A, Req Discharge: {5}A, PV Cur: {6} ". \
         format(self._bms_data.state_of_charge, self._bms_data.actual_battery_voltage, \
-        self._bms_data.battery_current, charge_current, self._bms_data.charging_state,
+        self._bms_data.battery_current, self._bms_data.charging_state, charge_current, 
         self._bms_data.req_discharge_amps, self._bms_data.pv_current))
         
-
     #Low battery safety, if low voltage, pre-empt SoC with minimum value to force grid transfer
-    if sma_line1["ExtVoltage"] > 100 and self._bms_data.actual_battery_voltage < 49.6:
+    if (sma_line1["ExtVoltage"] > 100 and self._bms_data.actual_battery_voltage < self._bms_data.low_battery_voltage):
       self._bms_data.state_of_charge = 1.0
 
     #breakup some of the values for CAN packing
