@@ -16,6 +16,7 @@ import argparse
 import serial
 import socket
 import logging
+import yaml
 
 from dbus.mainloop.glib import DBusGMainLoop
 import dbus
@@ -54,7 +55,6 @@ logger = logging.getLogger("dbus-sma")
 #logging.basicConfig(filename='/data/etc/dbus-sma/logging.log', encoding='utf-8', level=logging.INFO)
 #logger.setLevel(logging.DEBUG)
 logger.setLevel(logging.INFO)
-
 
 # The CANable (https://canable.io/) is a small open-source USB to CAN adapter. The CANable can show up as a virtual serial port (slcan): /dev/ttyACM0 or
 # as a socketcan: can0. In testing both methods work, however, I found the can0 to be much more robust.
@@ -131,22 +131,31 @@ class BMSData:
     self.charging_state = "" # state of charge state machine
     self.state_of_charge = 42.0  # sane initial value
     self.actual_battery_voltage = 0.0
-    self.req_charge_amps = 165.0
-    self.req_discharge_amps = 200.0
+    self.req_discharge_amps = max_discharge_amps
     self.battery_current = 0.0
     self.pv_current = 0.0
+
+  def __str__(self):
+    return "BMS Data, MaxV: {0}V, MinV: {1}V, LowV: {2}V, BulkA: {3}A, AbsorbV: {4}V, FloatV: {5}V, MinuteAbsorb: {6}, RebulkV: {7}V" \
+      .format(self.max_battery_voltage, self.min_battery_voltage, self.low_battery_voltage, self.charge_bulk_amps, \
+        self.charge_absorb_voltage, self.charge_float_voltage, self.time_min_absorb, self.rebulk_voltage)
 
 # SMA Driver Class
 class SmaDriver:
 
   def __init__(self):
     self.driver_start_time = datetime.now()
-    
+
+    # data from yaml config file
+    _cfg = self.get_config_data()['BMSData']
+
     # TODO: use venus settings to define these values
-    #Initial BMS values eventually read from settings. 
-    self._bms_data = BMSData(max_battery_voltage=60.0, min_battery_voltage=46.0, low_battery_voltage=49.6, \
-      charge_bulk_amps=164.0, max_discharge_amps=200.0, charge_absorb_voltage=58.4, \
-        charge_float_voltage=54.4, time_min_absorb=120, rebulk_voltage=53.6)
+    #Initial BMS values eventually read from settings.
+    self._bms_data = BMSData(max_battery_voltage=_cfg['max_battery_voltage'], \
+      min_battery_voltage=_cfg['min_battery_voltage'], low_battery_voltage=_cfg['low_battery_voltage'], \
+      charge_bulk_amps=_cfg['charge_bulk_amps'], max_discharge_amps=_cfg['max_discharge_amps'], \
+      charge_absorb_voltage=_cfg['charge_absorb_voltage'], charge_float_voltage=_cfg['charge_float_voltage'], \
+      time_min_absorb=_cfg['time_min_absorb'], rebulk_voltage=_cfg['rebulk_voltage'])
 
     self.bms_controller = BMSChargeController(charge_bulk_current=self._bms_data.charge_bulk_amps, \
       charge_absorb_voltage=self._bms_data.charge_absorb_voltage, charge_float_voltage=self._bms_data.charge_float_voltage, \
@@ -407,7 +416,6 @@ class SmaDriver:
     if sma_line2["OutputVoltage"] != 0:
       self._dbusservice["/Ac/Out/L2/I"] = int(line2_inv_outpwr / sma_line2["OutputVoltage"])
 
-
     if sma_system["ExtRelay"]:
       self._dbusservice["/Ac/ActiveIn/Connected"] = 1
       self._dbusservice["/Ac/ActiveIn/ActiveInput"] = 0
@@ -500,12 +508,6 @@ class SmaDriver:
 
    #subtract any active Solar current from the requested charge current
     charge_amps = charge_amps - self._bms_data.pv_current
-
-#    else:
-#      self._bms_data.req_charge_amps = 3;
-    
-
-    #logger.debug(self._bms_data.req_charge_amps) 
     return charge_amps
   
 #----
@@ -569,7 +571,6 @@ class SmaDriver:
     SoC_HD = int(self._bms_data.state_of_charge*100)
     SoC_HD_H, SoC_HD_L = bytes(SoC_HD)
 
-    #Req_Charge_H, Req_Charge_L = bytes(int(self._bms_data.req_charge_amps*10))
     Req_Charge_H, Req_Charge_L = bytes(int(charge_current*10))
 
     Req_Discharge_H, Req_Discharge_L = bytes(int(self._bms_data.req_discharge_amps*10))
@@ -642,6 +643,17 @@ class SmaDriver:
       pass
 
     return True  # keep timer running
+
+#----
+  def get_config_data(self):
+    try :
+      dir_path = os.path.dirname(os.path.realpath(__file__))
+      with open(dir_path + "/dbus-sma.yaml", "r") as yamlfile:
+        config = yaml.load(yamlfile, Loader=yaml.FullLoader)
+        return config
+    except :
+      logger.info("dbus-sma.yaml file not found or correct.")
+      sys.exit()
 
 if __name__ == "__main__":
   # Argument parsing
