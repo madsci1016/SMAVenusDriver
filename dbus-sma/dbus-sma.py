@@ -33,6 +33,7 @@ sys.path.insert(1, os.path.join(os.path.dirname(__file__), 'ext', 'velib_python'
 from vedbus import VeDbusService
 from ve_utils import get_vrm_portal_id, exit_on_error
 from dbusmonitor import DbusMonitor
+from settingsdevice import SettingsDevice  # available in the velib_python repository
 
 from bms_state_machine import BMSChargeStateMachine, BMSChargeModel, BMSChargeController
 
@@ -175,6 +176,16 @@ class SmaDriver:
      logger.error(e)
 
     logger.debug("Can bus init done")
+
+    # Add the AcInput1 setting if it doesn't exist so that the grid data is reported
+    # to the system by dbus-systemcalc-py service
+    settings = SettingsDevice(
+       bus=dbus.SystemBus(),# if (platform.machine() == 'armv7l') else dbus.SessionBus(),
+       supportedSettings={
+           'acinput': ['/Settings/SystemSetup/AcInput1', 1, 0, 1],
+           },
+       eventCallback=None)
+
 
 		# Why this dummy? Because DbusMonitor expects these values to be there, even though we don't
 		# need them. So just add some dummy data. This can go away when DbusMonitor is more generic.
