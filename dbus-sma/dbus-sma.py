@@ -48,10 +48,11 @@ signal.signal(signal.SIGWINCH, signal.SIG_IGN)
 
 
 softwareVersion = '1.1'
-logger = logging.getLogger("dbus-sma")
+#logger = logging.getLogger("dbus-sma")
+#logger = logging.getLogger(__name__)
 
 # global logger for all modules imported here
-#logger = logging.getLogger()
+logger = logging.getLogger()
 
 #logging.basicConfig(filename='/data/etc/dbus-sma/logging.log', encoding='utf-8', level=logging.INFO)
 #logger.setLevel(logging.DEBUG)
@@ -580,7 +581,11 @@ class SmaDriver:
     self.bms_controller.update_req_bulk_current(self._execute_grid_solar_charge_logic())
 
     # update the battery voltage for the BMS to determine next state or charge current level
-    is_state_changed = self.bms_controller.update_battery_voltage(self._bms_data.actual_battery_voltage)
+    # Note: Positive value for current means it is going INTO the battery. SMA will report as negative
+    # so we change signs here
+    is_state_changed = self.bms_controller.update_battery_data(self._bms_data.actual_battery_voltage, \
+        -(sma_battery["Current"]))
+
     self._bms_data.charging_state = self.bms_controller.get_state()
     charge_current = self.bms_controller.get_charge_current()
   

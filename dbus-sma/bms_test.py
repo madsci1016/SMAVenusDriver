@@ -23,7 +23,8 @@ counter = 0
 
 while (True):
 
-  is_state_changed = bms_controller.update_battery_voltage(bat_voltage)
+  charge_current = 0.0
+  is_state_changed = bms_controller.update_battery_data(bat_voltage, charge_current)
   state = bms_controller.get_state()
   charge_current = bms_controller.get_charge_current()
   

@@ -9,6 +9,7 @@ __copyright__   = "Copyright 2020"
 __license__     = "MIT"
 __version__     = "0.1"
 
+import logging
 from statemachine import StateMachine, State
 from datetime import datetime, timedelta
 
@@ -17,6 +18,9 @@ from datetime import datetime, timedelta
 # install with pip:
 # $ pip install python-statemachine
 #
+
+logger = logging.getLogger(__name__)
+#logger.setLevel(logging.INFO)
 
 class BMSChargeStateMachine(StateMachine):
   idle = State("Idle", initial=True)#, value=1)
@@ -62,11 +66,15 @@ class BMSChargeModel(object):
     self.time_min_absorb = time_min_absorb
     self.rebulk_voltage = rebulk_voltage
 
-    self.actual_current = 0.0
     self.actual_voltage = 0.0
+
+    self.actual_current = 0.0
+    self.set_current = 0.0
     
     # init callback
+    self.state_changed = False
     self.check_state = self.check_idle_state
+    self.last_voltage = 0.0
 
   # event callbacks when entering different states    
   def on_enter_idle(self):
@@ -84,19 +92,68 @@ class BMSChargeModel(object):
 
   # functions used for logic on various states
   def check_idle_state(self):
-    print("check_idle_state")
+    pass
+
+  def update_battery_data(self, voltage, current):
+    # use rounded values in logic
+    self.actual_voltage = round(voltage, 2)
+    self.actual_current = round(current, 1)
 
   def check_bulk_chg_state(self):
-    #print("check_bulk_chg_state")
-    self.actual_current = self.charge_bulk_current
+    self.set_current = self.charge_bulk_current
     if (self.actual_voltage >= self.charge_absorb_voltage):
-      self.actual_current = 0
+      self.set_current = 0
       # move to next state
       return 1
     return 0
 
+  # TODO: WIP, values for testing.................................
+  def do_current_logic(self, set_voltage):
+    # if the batt voltage is greater than the set_voltage, it overshot
+    if (self.actual_voltage > set_voltage):
+      # if the set current greater than actual, start with actual
+      if (self.set_current > self.actual_current):
+        self.set_current = self.actual_current
+
+      if (self.actual_voltage > self.last_voltage):
+        # lower set current
+        self.set_current -= 0.2
+      #else:
+      #  self.set_current = self.actual_current
+
+      # if set current is below min, set to min
+      if (self.set_current < 0.6):
+        self.set_current = 0.6
+
+    # if the batt voltage is less than the set_voltage, inc current
+    elif (self.actual_voltage < set_voltage):
+      # if the set current is less than the actual current, start with actual      
+      if (self.set_current < self.actual_current):
+        self.set_current = self.actual_current
+
+      # inc set current
+      self.set_current += 0.1
+
+      # if set current is greater than max, set it to max
+      if (self.set_current > 10.0):
+        self.set_current = 10.0
+
+    # cap charge current to the bulk_chg state
+    if (self.set_current > self.charge_bulk_current):
+      self.set_current = self.charge_bulk_current
+
+    self.set_current = round(self.set_current, 1)
+
+    logger.info("Actual Current: {0:.1f}A, Set Current: {1:.1f}A, Last Voltage: {2:.2f}V, Actual Voltage: {3:.2f}V"\
+      .format(self.actual_current, self.set_current, self.last_voltage, self.actual_voltage))
+
+    self.last_voltage = self.actual_voltage
+
   def check_absorb_chg_state(self):
-    #print("check_absorb_chg_state")
+    # if we just transitioned from bulk
+    if (self.state_changed):
+      self.set_current = 0
+      return 0
 
     # if voltage falls below float voltage, go back to bulk
     if (self.actual_voltage < self.charge_float_voltage):
@@ -105,30 +162,15 @@ class BMSChargeModel(object):
     if (datetime.now() - self.start_of_absorb_chg > timedelta(minutes=self.time_min_absorb)):
       return 1
 
-    if (self.actual_voltage >= self.charge_absorb_voltage):
-      self.actual_current = 0.6
-    elif (self.actual_voltage < self.charge_absorb_voltage):
-      self.actual_current += 0.1
-      if (self.actual_current > 4.0):
-        self.actual_current = 4.0
-
-    # cap charge current to the bulk_chg state
-    if (self.actual_current > self.charge_bulk_current):
-      self.actual_current = self.charge_bulk_current
-
+    self.do_current_logic( self.charge_absorb_voltage)
     return 0
     
   def check_float_chg_state(self):
-    #print("check_float_chg_state")
-
     # if voltage falls below rebulk voltage, go back to bulk
     if (self.actual_voltage < self.rebulk_voltage):
       return -1
 
-    if (self.actual_voltage >= self.charge_float_voltage):
-      self.actual_current = 0.6
-    elif (self.actual_voltage < self.charge_float_voltage):
-      self.actual_current += 0.1
+    self.do_current_logic(self.charge_float_voltage)
     return 0
     
 # Charge controller, external interface to the bms state machine charger
@@ -144,8 +186,8 @@ class BMSChargeController(object):
       .format(self.model.charge_bulk_current, self.model.charge_absorb_voltage, \
         self.model.time_min_absorb, self.model.charge_float_voltage)
     
-  def update_battery_voltage(self, voltage):
-    self.model.actual_voltage = voltage
+  def update_battery_data(self, voltage, current):
+    self.model.update_battery_data(voltage, current)
     return self.check_state()
 
   def update_req_bulk_current(self, current):
@@ -172,9 +214,12 @@ class BMSChargeController(object):
     self.state_machine.cancel()
     
   def check_state(self):
-    #print ("check_state")
+    self.state_changed = True
+
     val = self.model.check_state()
-    if (val == 1):
+    if (val == 0):
+      self.state_changed = False
+    elif (val == 1):
       self.state_machine.cycle()
     elif (val == -1):
       # rebulk
@@ -183,7 +228,7 @@ class BMSChargeController(object):
     return val
     
   def get_charge_current(self):
-    return self.model.actual_current
+    return self.model.set_current
     
   def get_state(self):
     return self.state_machine.current_state.value
