@@ -214,7 +214,7 @@ class SmaDriver:
     #                      ->  10: Assisting
     #                      -> 256: Discharging
     #                      -> 257: Sustain
-    self._dbusservice.add_path('/State',                   9)
+    self._dbusservice.add_path('/State',                   0)
     self._dbusservice.add_path('/Mode',                    3)
     self._dbusservice.add_path('/Ac/PowerMeasurementType', 0)
 
@@ -323,6 +323,8 @@ class SmaDriver:
       while True:
         msg = self._can_bus.recv(1)
         if (msg is None) :
+          self._dbusservice["/State"] = 0
+          logger.info("No Message received from Sunny Island")
           return True
           
         if (msg.arbitration_id == CANFrames["ExtPwr"] or msg.arbitration_id == CANFrames["InvPwr"] or \
@@ -424,10 +426,14 @@ class SmaDriver:
     self._dbusservice["/Ac/Out/L2/F"] = sma_line1["OutputFreq"]
     self._dbusservice["/Ac/Out/L1/V"] = sma_line1["OutputVoltage"]
     self._dbusservice["/Ac/Out/L2/V"] = sma_line2["OutputVoltage"]
-    if sma_line1["OutputVoltage"] != 0:
+    
+    inverter_on = 0
+    if sma_line1["OutputVoltage"] > 5:
       self._dbusservice["/Ac/Out/L1/I"] = int(line1_inv_outpwr / sma_line1["OutputVoltage"])
-    if sma_line2["OutputVoltage"] != 0:
+      inverter_on += 1
+    if sma_line2["OutputVoltage"] > 5:
       self._dbusservice["/Ac/Out/L2/I"] = int(line2_inv_outpwr / sma_line2["OutputVoltage"])
+      inverter_on += 1
 
     if sma_system["ExtRelay"]:
       self._dbusservice["/Ac/ActiveIn/Connected"] = 1
@@ -439,19 +445,23 @@ class SmaDriver:
     # state = 3:Bulk, 4:Absorb, 5:Float, 6:Storage, 7:Equalize, 8:Passthrough 9:Inverting 
     # push charging state to dbus
     vebusChargeState = 0
-    systemState = 9
+    systemState = 0
 
-    # if current is going into the battery  
-    if (self._bms_data.battery_current > 0):
-      if (self._bms_data.charging_state == "bulk_chg"):
-        vebusChargeState = 1
-        systemState = 3
-      elif (self._bms_data.charging_state == "absorb_chg"):
-        vebusChargeState = 2
-        systemState = 4
-      elif (self._bms_data.charging_state == "float_chg"):
-        vebusChargeState = 3
-        systemState = 5
+    #logger.info("SysState: {0}, InvOn: {1}".format(systemState, inverter_on))
+
+    if (inverter_on > 0):
+      systemState = 9
+      # if current is going into the battery  
+      if (self._bms_data.battery_current > 0):
+        if (self._bms_data.charging_state == "bulk_chg"):
+          vebusChargeState = 1
+          systemState = 3
+        elif (self._bms_data.charging_state == "absorb_chg"):
+          vebusChargeState = 2
+          systemState = 4
+        elif (self._bms_data.charging_state == "float_chg"):
+          vebusChargeState = 3
+          systemState = 5
 
     self._dbusservice["/VebusChargeState"] = vebusChargeState
     self._dbusservice["/State"] = systemState
