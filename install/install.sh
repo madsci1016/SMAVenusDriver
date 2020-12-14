@@ -41,6 +41,7 @@ then
 
     pip install python-can
     pip install python-statemachine
+    pip install pyyaml
   fi
 
 	echo "==== Download driver and library ===="
