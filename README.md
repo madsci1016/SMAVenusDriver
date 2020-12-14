@@ -12,12 +12,15 @@ Tested with RPi 3B - v2.60 Build 20200906135923
 
 The provided install.sh script will copy files download dependencies and should provide a running configuration. It will not setup valid configuration values so don't expect this to be plug and play:
 
-1. from root login on the venus root home directory
-2. wget https://github.com/jaedog/SMAVenusDriver/raw/master/install/install.sh
-3. chmod +x install.sh
-4. ./install.sh
-5. answer Y to the install of the driver
-6. answer Y to the dependencies (unless they are already installed)
+1. flash the included "candlelight" firmware image onto your CAN adapter using your computer (see CAN adapter below)
+2. enable root access on your Venus device (see useful reading below)
+3. from root login on the venus root home directory
+4. connect the CAN adapter to your Venus / Raspberry Pi now. 
+5. run wget https://github.com/jaedog/SMAVenusDriver/raw/master/install/install.sh
+6. run chmod +x install.sh
+7. run ./install.sh
+8. answer Y to the install of the driver
+9. answer Y to the dependencies (unless they are already installed)
 
 ## Victron VenusOS Notes
 
@@ -31,11 +34,11 @@ So the Victron system (or whatever you use this code with) will needs its own ba
 
 ### Useful Reading
 
-See https://github.com/victronenergy/venus/wiki/howto-add-a-driver-to-Venus for info.
+Venus Developmental Info see https://github.com/victronenergy/venus/wiki/howto-add-a-driver-to-Venus .
 
-See https://www.victronenergy.com/live/ccgx:root_access#:~:text=Go%20to%20Settings%2C%20General,Access%20Level%20change%20to%20Superuser for the way to gain root access to your Venus OS device. 
+Enable Root / SSH Access see https://www.victronenergy.com/live/ccgx:root_access#:~:text=Go%20to%20Settings%2C%20General,Access%20Level%20change%20to%20Superuser. 
 
-See https://github.com/victronenergy/venus/wiki/installing-additional-python-modules to add python modules needed for this driver to work. Like python-can.
+Add additional modules (now handles by install script) sww https://github.com/victronenergy/venus/wiki/installing-additional-python-modules.
 
 ## SMA Sunny Island
 
@@ -51,7 +54,7 @@ SMA SI Manual: https://files.sma.de/downloads/SI4548-6048-US-BE-en-21W.pdf
 Page 53, Section 6.4.2 Connecting the Data Cable of the Lithium-Ion Batteries details where to connect the RJ45 CAN cable
 
 #### CAN Adapter
-The SMA SI use the CAN bus to communicate between master/slave and other devices. In order to participate on the CAN bus, you must have a CAN adapter. The tested CAN adapter is the open source USB CANable device (https://canable.io/). Either version from https://store.protofusion.org/ will work. The firmware installed from ProtoFusion store is slcan, which emmulates a tty serial device. This project supports the "candlelight" FW by default, which will require a FW flash to the canable device. See: https://github.com/jaedog/SMAVenusDriver/wiki/Canable-Firmware.
+The SMA SI use the CAN bus to communicate between master/slave and other devices. In order to participate on the CAN bus, you must have a CAN adapter. The tested CAN adapter is the open source USB CANable device (https://canable.io/). Either version from https://store.protofusion.org/ will work. The firmware installed from ProtoFusion store is slcan, which emmulates a tty serial device. This project supports the "candlelight" FW by default, which will require a FW flash to the canable device. To flash your adapter, follow the directions here: https://canable.io/getting-started.html#flashing-new-firmware Use the ST DFU tool if you are on Windows. For more info, see: https://github.com/jaedog/SMAVenusDriver/wiki/Canable-Firmware.
 
 ##### CAN Pinouts
 The SMA SI uses an RJ45 connector for its CAN Bus interface. 
