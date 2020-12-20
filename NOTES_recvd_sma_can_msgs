@@ -26,8 +26,9 @@ Second 2 bytes, DC current combined system,  signed 16bit 0.1A
 Last 4 bytes unknown, always seem to be E6,00,DE,03
 
 0x306
-Byte 7: Ext relay closed = 0x58  open = 0x4e
-There’s likely more info here, possibly bitwise
+
+0x307
+Byte 2, high two bits are useful. Bit 7 is 1 for AC2 relay closed. Bit 6 is 1 for valid voltage present on AC2. 
 
 0x308
 (Guess) first two bytes is total Load power. 

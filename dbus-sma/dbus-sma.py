@@ -88,11 +88,11 @@ driver = {
 }
 
 CAN_tx_msg = {"BatChg": 0x351, "BatSoC": 0x355, "BatVoltageCurrent" : 0x356, "AlarmWarning": 0x35a, "BMSOem": 0x35e, "BatData": 0x35f}
-CANFrames = {"ExtPwr": 0x300, "InvPwr": 0x301, "OutputVoltage": 0x304, "Battery": 0x305, "Relay": 0x306, "LoadPwr": 0x308, "ExtVoltage": 0x309}
+CANFrames = {"ExtPwr": 0x300, "InvPwr": 0x301, "OutputVoltage": 0x304, "Battery": 0x305, "Relay": 0x306, "Bits": 0x307, "LoadPwr": 0x308, "ExtVoltage": 0x309}
 sma_line1 = {"OutputVoltage": 0, "ExtPwr": 0, "InvPwr": 0, "ExtVoltage": 0, "ExtFreq": 0.00, "OutputFreq": 0.00}
 sma_line2 = {"OutputVoltage": 0, "ExtPwr": 0, "InvPwr": 0, "ExtVoltage": 0}
 sma_battery = {"Voltage": 0, "Current": 0}
-sma_system = {"ExtRelay" : 0, "Load" : 0}
+sma_system = {"ExtRelay" : 0, "ExtOk" : 0, "Load" : 0}
 
 def getSignedNumber(number, bitLength):
     mask = (2 ** bitLength) - 1
@@ -244,6 +244,7 @@ class SmaDriver:
     self._dbusservice.add_path('/Dc/0/Power',             -1)
     self._dbusservice.add_path('/Dc/0/Current',           -1)
     self._dbusservice.add_path('/Ac/NumberOfPhases',       2)
+    self._dbusservice.add_path('/Alarms/GridLost',         0)
 
     # /VebusChargeState  <- 1. Bulk
     #                       2. Absorption
@@ -330,7 +331,7 @@ class SmaDriver:
         if (msg.arbitration_id == CANFrames["ExtPwr"] or msg.arbitration_id == CANFrames["InvPwr"] or \
               msg.arbitration_id == CANFrames["LoadPwr"] or msg.arbitration_id == CANFrames["OutputVoltage"] or \
               msg.arbitration_id == CANFrames["ExtVoltage"] or msg.arbitration_id == CANFrames["Battery"] or \
-              msg.arbitration_id == CANFrames["Relay"]):
+              msg.arbitration_id == CANFrames["Relay"] or msg.arbitration_id == CANFrames["Bits"]):
           break
         
       if msg is not None:
@@ -359,13 +360,19 @@ class SmaDriver:
         elif msg.arbitration_id == CANFrames["Battery"]:
           sma_battery["Voltage"] = float(msg.data[0] + msg.data[1]*256) / 10
           sma_battery["Current"] = float(getSignedNumber(msg.data[2] + msg.data[3]*256, 16)) / 10
-          self._updatedbus()
-        elif msg.arbitration_id == CANFrames["Relay"]:
-          if msg.data[6] == 0x58:
+          self._updatedbus()   
+        elif msg.arbitration_id == CANFrames["Bits"]:
+          if msg.data[2]&128:
             sma_system["ExtRelay"] = 1
-          elif msg.data[6] == 0x4e:
+          else:
             sma_system["ExtRelay"] = 0
-          self._updatedbus()
+          if msg.data[2]&64:
+            sma_system["ExtOk"] = 0 
+          else:
+            sma_system["ExtOk"] = 2
+        
+          #print ("307 message" )
+          #print(msg) 
 
     except (KeyboardInterrupt) as e:
       self._mainloop.quit()
@@ -386,6 +393,7 @@ class SmaDriver:
     self._dbusservice["/Ac/ActiveIn/L2/V"] = sma_line2["ExtVoltage"]
     self._dbusservice["/Ac/ActiveIn/L1/F"] = sma_line1["ExtFreq"]
     self._dbusservice["/Ac/ActiveIn/L2/F"] = sma_line1["ExtFreq"]
+    self._dbusservice["/Alarms/GridLost"] = sma_system["ExtOk"]
     if sma_line1["ExtVoltage"] != 0:
       self._dbusservice["/Ac/ActiveIn/L1/I"] = int(sma_line1["ExtPwr"] / sma_line1["ExtVoltage"])
     if sma_line2["ExtVoltage"] != 0:
