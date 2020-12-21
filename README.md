@@ -16,7 +16,7 @@ The provided install.sh script will copy files download dependencies and should 
 2. enable root access on your Venus device (see useful reading below)
 3. from root login on the venus root home directory
 4. connect the CAN adapter to your Venus / Raspberry Pi now. 
-5. run wget https://github.com/jaedog/SMAVenusDriver/raw/master/install/install.sh
+5. run wget https://github.com/madsci1016/SMAVenusDriver/raw/master/install/install.sh
 6. run chmod +x install.sh
 7. run ./install.sh
 8. answer Y to the install of the driver

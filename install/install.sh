@@ -9,7 +9,7 @@
 ROOT_DIR=""
 
 # download this script:
-# wget https://github.com/jaedog/SMAVenusDriver/raw/master/install/install.sh
+# wget https://github.com/madsci1016/SMAVenusDriver/raw/master/install/install.sh
 
 echo
 echo "Please ensure your socketcan enable canable USB adapter is plugged into the Venus"
@@ -46,7 +46,7 @@ then
 
 	echo "==== Download driver and library ===="
 
-	wget https://github.com/jaedog/SMAVenusDriver/archive/master.zip
+	wget https://github.com/madsci1016/SMAVenusDriver/archive/master.zip
 	unzip -qo master.zip
 	rm master.zip
 
