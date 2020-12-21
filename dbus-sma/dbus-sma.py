@@ -339,10 +339,12 @@ class SmaDriver:
           sma_line1["ExtPwr"] = (getSignedNumber(msg.data[0] + msg.data[1]*256, 16)*100)
           sma_line2["ExtPwr"] = (getSignedNumber(msg.data[2] + msg.data[3]*256, 16)*100)
           #self._updatedbus()
+          #print ("Ex Power L1: " + str(sma_line1["ExtPwr"]) + "  Power L2: " + str(sma_line2["ExtPwr"]))
         elif msg.arbitration_id == CANFrames["InvPwr"]:
           sma_line1["InvPwr"] = (getSignedNumber(msg.data[0] + msg.data[1]*256, 16)*100)
           sma_line2["InvPwr"] = (getSignedNumber(msg.data[2] + msg.data[3]*256, 16)*100)
           #calculate_pwr()
+          #print ("Power L1: " + str(sma_line1["InvPwr"]) + "  Power L2: " + str(sma_line2["InvPwr"]))
           self._updatedbus()
         elif msg.arbitration_id == CANFrames["LoadPwr"]:
           sma_system["Load"] = (getSignedNumber(msg.data[0] + msg.data[1]*256, 16)*100)
@@ -408,24 +410,28 @@ class SmaDriver:
 
     pv_ac_l1_pwr = self._dbusmonitor.get_value('com.victronenergy.system', '/Ac/PvOnOutput/L1/Power')
     pv_ac_l2_pwr = self._dbusmonitor.get_value('com.victronenergy.system', '/Ac/PvOnOutput/L2/Power')
+
     if (pv_ac_l1_pwr == None):
-      pv_ac_l1_pwr = 0
+       line1_inv_outpwr = sma_line1["ExtPwr"] + sma_line1["InvPwr"] 
+    else:
+      pv_ac_l1_pwr_10s = (pv_ac_l1_pwr % 100 + 10)
+      # fixup power to offset the SMA inverter
+      if (pv_ac_l1_pwr_10s < 15):
+        pv_ac_l1_pwr_10s = 100
+
+      line1_inv_outpwr = sma_line1["ExtPwr"] + sma_line1["InvPwr"] - pv_ac_l1_pwr_10s
+    
     if (pv_ac_l2_pwr == None):
-      pv_ac_l2_pwr = 0
-
-    pv_ac_l1_pwr_10s = (pv_ac_l1_pwr % 100 + 10)
-    pv_ac_l2_pwr_10s = (pv_ac_l2_pwr % 100 + 10)
-
-    # fixup power to offset the SMA inverter
-    if (pv_ac_l1_pwr_10s < 15):
-      pv_ac_l1_pwr_10s = 100
-    if (pv_ac_l2_pwr_10s < 15):
-      pv_ac_l2_pwr_10s = 100
+      line2_inv_outpwr = sma_line2["ExtPwr"] + sma_line2["InvPwr"] 
+    else:
+      pv_ac_l2_pwr_10s = (pv_ac_l2_pwr % 100 + 10)
+      if (pv_ac_l2_pwr_10s < 15):
+        pv_ac_l2_pwr_10s = 100
+      line2_inv_outpwr = sma_line2["ExtPwr"] + sma_line2["InvPwr"] - pv_ac_l2_pwr_10s
 
 
-    line1_inv_outpwr = sma_line1["ExtPwr"] + sma_line1["InvPwr"] - pv_ac_l1_pwr_10s
-    line2_inv_outpwr = sma_line2["ExtPwr"] + sma_line2["InvPwr"] - pv_ac_l2_pwr_10s
-    #logger.info("Line 1 Inv out: {0}, Line 2 Inv out: {1}".format(line1_inv_outpwr, line2_inv_outpwr))
+    #print ("After calc Power L1: " + str(line1_inv_outpwr) + "  Power L2: " + str(line2_inv_outpwr))
+
 
     self._dbusservice["/Ac/Out/L1/P"] = line1_inv_outpwr
     self._dbusservice["/Ac/Out/L2/P"] = line2_inv_outpwr
