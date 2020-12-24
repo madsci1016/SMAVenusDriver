@@ -5,10 +5,10 @@ BMSData:
     low_battery_voltage: 49.6
     charge_bulk_amps: 164.0
     max_discharge_amps: 200.0
-    charge_absorb_voltage: 56.8  #58.4
+    charge_absorb_voltage: 56.2  #58.4
     charge_float_voltage: 54.4 
     time_min_absorb: 120
-    rebulk_voltage: 53.6
+    rebulk_voltage: 54.0
 
 GridLogic:
     start_hour: 14
