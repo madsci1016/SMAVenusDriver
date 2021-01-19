@@ -432,6 +432,12 @@ class SmaDriver:
 
     #print ("After calc Power L1: " + str(line1_inv_outpwr) + "  Power L2: " + str(line2_inv_outpwr))
 
+    #only do this with Dc coupled till it can be tested against AC coupled\
+    if (pv_ac_l1_pwr == None and pv_ac_l2_pwr == None):
+      #we can gain back a little bit of resolution by compairing total reported load to sum of line loads reported to remove one source of rounding error.
+      if (sma_system["Load"] == (line1_inv_outpwr + line2_inv_outpwr + 100)):
+        line1_inv_outpwr+=50
+        line2_inv_outpwr+=50
 
     self._dbusservice["/Ac/Out/L1/P"] = line1_inv_outpwr
     self._dbusservice["/Ac/Out/L2/P"] = line2_inv_outpwr
