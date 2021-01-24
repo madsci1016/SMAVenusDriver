@@ -20,3 +20,8 @@ GridLogic:
 
     offtime_current: 4.0
 
+SafetyLogic:
+    after_blackout_charge_amps: 250.0
+    after_blackout_min_soc: 15
+    min_soc_inv_off: 5
+

@@ -92,7 +92,18 @@ CANFrames = {"ExtPwr": 0x300, "InvPwr": 0x301, "OutputVoltage": 0x304, "Battery"
 sma_line1 = {"OutputVoltage": 0, "ExtPwr": 0, "InvPwr": 0, "ExtVoltage": 0, "ExtFreq": 0.00, "OutputFreq": 0.00}
 sma_line2 = {"OutputVoltage": 0, "ExtPwr": 0, "InvPwr": 0, "ExtVoltage": 0}
 sma_battery = {"Voltage": 0, "Current": 0}
-sma_system = {"ExtRelay" : 0, "ExtOk" : 0, "Load" : 0}
+sma_system = {"State": 0, "ExtRelay" : 0, "ExtOk" : 0, "Load" : 0}
+
+#command packets to turn SMAs on or off
+SMA_ON_MSG = can.Message(arbitration_id = 0x35C,    #on
+      data=[0b00000001,0,0,0],
+      is_extended_id=False)
+
+SMA_OFF_MSG = can.Message(arbitration_id = 0x35C,    #off
+      data=[0b00000010,0,0,0],
+      is_extended_id=False)
+
+
 
 def getSignedNumber(number, bitLength):
     mask = (2 ** bitLength) - 1
@@ -170,6 +181,8 @@ class SmaDriver:
 
     self._can_bus = False
 
+    self._safety_off = False   #flag to see if we every shut the inverters off due to low batt. 
+
     logger.debug("Can bus init")
     try :
       self._can_bus = can.interface.Bus(bustype=canBusType, channel=canBusChannel, bitrate=500000)
@@ -217,6 +230,16 @@ class SmaDriver:
     self._dbusservice.add_path('/State',                   0)
     self._dbusservice.add_path('/Mode',                    3)
     self._dbusservice.add_path('/Ac/PowerMeasurementType', 0)
+    #self._dbusservice.add_path('/Hub4/AssistantId', 5)
+    #self._dbusservice.add_path('/Hub4/DisableCharge', 0)
+    #self._dbusservice.add_path('/Hub4/DisableFeedIn', 0)
+    #self._dbusservice.add_path('/Hub4/DoNotFeedInOverVoltage', 0)
+    #self._dbusservice.add_path('/Hub4/L1/AcPowerSetpoint', 0)
+    #self._dbusservice.add_path('/Hub4/L2/AcPowerSetpoint', 0)
+    #self._dbusservice.add_path('/Hub4/Sustain', 0)
+    #self._dbusservice.add_path('/Hub4/L1/MaxFeedInPower', 0)
+    #self._dbusservice.add_path('/Hub4/L2/MaxFeedInPower', 0)
+
 
     # Create the inverter/charger paths
     self._dbusservice.add_path('/Ac/Out/L1/P',            -1)
@@ -324,7 +347,8 @@ class SmaDriver:
       while True:
         msg = self._can_bus.recv(1)
         if (msg is None) :
-          self._dbusservice["/State"] = 0
+          sma_system["State"] = 0
+          #self._dbusservice["/State"] = 0
           logger.info("No Message received from Sunny Island")
           return True
           
@@ -370,8 +394,10 @@ class SmaDriver:
             sma_system["ExtRelay"] = 0
           if msg.data[2]&64:
             sma_system["ExtOk"] = 0 
+            #print ("Grid OK")
           else:
             sma_system["ExtOk"] = 2
+            #print ("Grid Down")
         
           #print ("307 message" )
           #print(msg) 
@@ -389,6 +415,7 @@ class SmaDriver:
 
 #----
   def _updatedbus(self):
+    #self._dbusservice["/State"] = sma_system["State"]
     self._dbusservice["/Ac/ActiveIn/L1/P"] = sma_line1["ExtPwr"]
     self._dbusservice["/Ac/ActiveIn/L2/P"] = sma_line2["ExtPwr"]
     self._dbusservice["/Ac/ActiveIn/L1/V"] = sma_line1["ExtVoltage"]
@@ -465,26 +492,26 @@ class SmaDriver:
     # state = 3:Bulk, 4:Absorb, 5:Float, 6:Storage, 7:Equalize, 8:Passthrough 9:Inverting 
     # push charging state to dbus
     vebusChargeState = 0
-    systemState = 0
+    sma_system["State"] = 0
 
     #logger.info("SysState: {0}, InvOn: {1}".format(systemState, inverter_on))
 
     if (inverter_on > 0):
-      systemState = 9
+      sma_system["State"] = 9
       # if current is going into the battery  
       if (self._bms_data.battery_current > 0):
         if (self._bms_data.charging_state == "bulk_chg"):
           vebusChargeState = 1
-          systemState = 3
+          sma_system["State"] = 3
         elif (self._bms_data.charging_state == "absorb_chg"):
           vebusChargeState = 2
-          systemState = 4
+          sma_system["State"] = 4
         elif (self._bms_data.charging_state == "float_chg"):
           vebusChargeState = 3
-          systemState = 5
+          sma_system["State"] = 5
 
     self._dbusservice["/VebusChargeState"] = vebusChargeState
-    self._dbusservice["/State"] = systemState
+    self._dbusservice["/State"] = sma_system["State"]
 
 #----
   def _energy_handler(self):
@@ -539,6 +566,7 @@ class SmaDriver:
       #  SMAupdate = False
 
       _cfg_grid = self._cfg["GridLogic"]
+      _cfg_safety = self._cfg["SafetyLogic"]
       #requested charge current varies by time of day and SoC value
       #for now, some rules to change charge behavior hard coded for my application.
       #Gonna try making these charge current targets inlcuding solar, so we need to subtract solar current later. 
@@ -551,8 +579,8 @@ class SmaDriver:
         charge_amps = _cfg_grid["offtime_current"]
 
       #TODO: can this use the same value as default bulk current?
-      if self._bms_data.state_of_charge < 15.0:  #recovering from blackout? Charge fast! 
-        charge_amps = 200.0
+      if self._bms_data.state_of_charge < _cfg_safety["after_blackout_min_soc"]:  #recovering from blackout? Charge fast! 
+        charge_amps = _cfg_safety["after_blackout_charge_amps"]
 
       #subtract any active Solar current from the requested charge current
       charge_amps = charge_amps - self._bms_data.pv_current
@@ -624,9 +652,29 @@ class SmaDriver:
         self._bms_data.battery_current, self._bms_data.charging_state, charge_current, 
         self._bms_data.req_discharge_amps, self._bms_data.pv_current))
         
-    #Low battery safety, if low voltage, pre-empt SoC with minimum value to force grid transfer
-    if (sma_line1["ExtVoltage"] > 100 and self._bms_data.actual_battery_voltage < self._bms_data.low_battery_voltage):
+    #**************Low battery safety****************# 
+    
+    _cfg_safety = self._cfg["SafetyLogic"]
+
+    #if grid is up but battery low voltage, issue with shunt calibration or SMA setting, pre-empt SoC with minimum value to force grid transfer
+    if (sma_system["ExtOk"] == 0 and self._bms_data.actual_battery_voltage < self._bms_data.low_battery_voltage):
       self._bms_data.state_of_charge = 1.0
+
+    #if no grid and Soc is low, we are in blackout with dead batteries and need to shut off inverters
+    if(self._safety_off == False):
+      #normal running, check for grid not ok AND low Soc, send off message till inverters respond
+      if(sma_system["ExtOk"] == 2 and  soc < _cfg_safety["min_soc_inv_off"]):   
+        self._can_bus.send(SMA_OFF_MSG)
+        if(sma_system["State"] == 0):
+          self._safety_off = True
+        #print("Shut off due to low SoC")
+    else:
+      #if we saftey shutdown, keep checking for grid restore OR SoC increase, send on message till inverters respond
+      if(sma_system["ExtOk"] == 0 or soc >= _cfg_safety["min_soc_inv_off"]):  
+        self._can_bus.send(SMA_ON_MSG)
+        if(sma_system["State"] != 0): 
+          self._safety_off = False
+        #print("Start SMA due to grid restore or SoC increase")
 
     #breakup some of the values for CAN packing
     SoC_HD = int(self._bms_data.state_of_charge*100)
