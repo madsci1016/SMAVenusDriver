@@ -197,6 +197,13 @@ class SmaDriver:
        bus=dbus.SystemBus(),# if (platform.machine() == 'armv7l') else dbus.SessionBus(),
        supportedSettings={
            'acinput': ['/Settings/SystemSetup/AcInput1', 1, 0, 1],
+           'hub4mode': ['/Settings/CGwacs/Hub4Mode', 3, 0, 3], 
+           'gridmeter': ['/Settings/CGwacs/RunWithoutGridMeter', 1, 0, 1], 
+           'acsetpoint': ['/Settings/CGwacs/AcPowerSetPoint', 0, -1000, 1000],
+           'maxchargepwr': ['/Settings/CGwacs/MaxChargePower', 0, -1000, 1000],
+           'maxdischargepwr': ['/Settings/CGwacs/MaxDischargePower', 0, -1000, 1000],
+           'maxchargepercent': ['/Settings/CGwacs/MaxChargePercentage', 0, 0, 100],
+           'maxdischargepercent': ['/Settings/CGwacs/MaxDischargePercentage', 0, 0, 100],
            },
        eventCallback=None)
 
@@ -230,15 +237,15 @@ class SmaDriver:
     self._dbusservice.add_path('/State',                   0)
     self._dbusservice.add_path('/Mode',                    3)
     self._dbusservice.add_path('/Ac/PowerMeasurementType', 0)
-    #self._dbusservice.add_path('/Hub4/AssistantId', 5)
-    #self._dbusservice.add_path('/Hub4/DisableCharge', 0)
-    #self._dbusservice.add_path('/Hub4/DisableFeedIn', 0)
-    #self._dbusservice.add_path('/Hub4/DoNotFeedInOverVoltage', 0)
-    #self._dbusservice.add_path('/Hub4/L1/AcPowerSetpoint', 0)
-    #self._dbusservice.add_path('/Hub4/L2/AcPowerSetpoint', 0)
-    #self._dbusservice.add_path('/Hub4/Sustain', 0)
-    #self._dbusservice.add_path('/Hub4/L1/MaxFeedInPower', 0)
-    #self._dbusservice.add_path('/Hub4/L2/MaxFeedInPower', 0)
+    self._dbusservice.add_path('/Hub4/AssistantId', 5)
+    self._dbusservice.add_path('/Hub4/DisableCharge', value=0, writeable=True)
+    self._dbusservice.add_path('/Hub4/DisableFeedIn', value=0, writeable=True)
+    self._dbusservice.add_path('/Hub4/DoNotFeedInOverVoltage', value=0, writeable=True)
+    self._dbusservice.add_path('/Hub4/L1/AcPowerSetpoint', value=0, writeable=True)
+    self._dbusservice.add_path('/Hub4/L2/AcPowerSetpoint', value=0, writeable=True)
+    self._dbusservice.add_path('/Hub4/Sustain', value=0, writeable=True)
+    self._dbusservice.add_path('/Hub4/L1/MaxFeedInPower', value=0, writeable=True)
+    self._dbusservice.add_path('/Hub4/L2/MaxFeedInPower', value=0, writeable=True)
 
 
     # Create the inverter/charger paths
