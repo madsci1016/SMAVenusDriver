@@ -199,11 +199,11 @@ class SmaDriver:
            'acinput': ['/Settings/SystemSetup/AcInput1', 1, 0, 1],
            'hub4mode': ['/Settings/CGwacs/Hub4Mode', 3, 0, 3], 
            'gridmeter': ['/Settings/CGwacs/RunWithoutGridMeter', 1, 0, 1], 
-           'acsetpoint': ['/Settings/CGwacs/AcPowerSetPoint', 0, -1000, 1000],
-           'maxchargepwr': ['/Settings/CGwacs/MaxChargePower', 0, -1000, 1000],
-           'maxdischargepwr': ['/Settings/CGwacs/MaxDischargePower', 0, -1000, 1000],
-           'maxchargepercent': ['/Settings/CGwacs/MaxChargePercentage', 0, 0, 100],
-           'maxdischargepercent': ['/Settings/CGwacs/MaxDischargePercentage', 0, 0, 100],
+           'acsetpoint': ['/Settings/CGwacs/AcPowerSetPoint', 0, -15000, 15000],
+           'maxchargepwr': ['/Settings/CGwacs/MaxChargePower', 0, -15000, 15000],
+           'maxdischargepwr': ['/Settings/CGwacs/MaxDischargePower', 0, -15000, 15000],
+           'maxchargepercent': ['/Settings/CGwacs/MaxChargePercentage', 0, -1000, 1000],
+           'maxdischargepercent': ['/Settings/CGwacs/MaxDischargePercentage', 0, -1000, 1000],
            },
        eventCallback=None)
 
