@@ -94,6 +94,8 @@ sma_line2 = {"OutputVoltage": 0, "ExtPwr": 0, "InvPwr": 0, "ExtVoltage": 0}
 sma_battery = {"Voltage": 0, "Current": 0}
 sma_system = {"State": 0, "ExtRelay" : 0, "ExtOk" : 0, "Load" : 0}
 
+settings = 0
+
 #command packets to turn SMAs on or off
 SMA_ON_MSG = can.Message(arbitration_id = 0x35C,    #on
       data=[0b00000001,0,0,0],
@@ -196,14 +198,15 @@ class SmaDriver:
     settings = SettingsDevice(
        bus=dbus.SystemBus(),# if (platform.machine() == 'armv7l') else dbus.SessionBus(),
        supportedSettings={
-           'acinput': ['/Settings/SystemSetup/AcInput1', 1, 0, 1],
-           'hub4mode': ['/Settings/CGwacs/Hub4Mode', 3, 0, 3], 
-           'gridmeter': ['/Settings/CGwacs/RunWithoutGridMeter', 1, 0, 1], 
-           'acsetpoint': ['/Settings/CGwacs/AcPowerSetPoint', 0, -15000, 15000],
-           'maxchargepwr': ['/Settings/CGwacs/MaxChargePower', 0, -15000, 15000],
-           'maxdischargepwr': ['/Settings/CGwacs/MaxDischargePower', 0, -15000, 15000],
-           'maxchargepercent': ['/Settings/CGwacs/MaxChargePercentage', 0, -1000, 1000],
-           'maxdischargepercent': ['/Settings/CGwacs/MaxDischargePercentage', 0, -1000, 1000],
+           'acinput': ['/Settings/SystemSetup/AcInput1', 1, 0, 0],
+           'hub4mode': ['/Settings/CGwacs/Hub4Mode', 3, 0, 0], 
+           'gridmeter': ['/Settings/CGwacs/RunWithoutGridMeter', 1, 0, 0], 
+           'acsetpoint': ['/Settings/CGwacs/AcPowerSetPoint', 0, 0, 0],
+           'maxchargepwr': ['/Settings/CGwacs/MaxChargePower', 0, 0, 0],
+           'maxdischargepwr': ['/Settings/CGwacs/MaxDischargePower', 0, 0, 0],
+           'maxchargepercent': ['/Settings/CGwacs/MaxChargePercentage', 0, 0, 0],
+           'maxdischargepercent': ['/Settings/CGwacs/MaxDischargePercentage', 0, 0, 0],
+           'essMode': ['/Settings/CGwacs/BatteryLife/State', 0, 0, 0],
            },
        eventCallback=None)
 
@@ -439,39 +442,16 @@ class SmaDriver:
     self._dbusservice["/Dc/0/Current"] = sma_battery["Current"] *-1
     self._dbusservice["/Dc/0/Power"] = sma_battery["Current"] * sma_battery["Voltage"] *-1
     
-    # The SMA inverter only reports power in 100s of watts. To ensure the AC loads 
-    # measurement is correct we need to subtract out the additional PV AC power to the nearest 100 watts
-
-    pv_ac_l1_pwr = self._dbusmonitor.get_value('com.victronenergy.system', '/Ac/PvOnOutput/L1/Power')
-    pv_ac_l2_pwr = self._dbusmonitor.get_value('com.victronenergy.system', '/Ac/PvOnOutput/L2/Power')
-
-    if (pv_ac_l1_pwr == None):
-       line1_inv_outpwr = sma_line1["ExtPwr"] + sma_line1["InvPwr"] 
-    else:
-      pv_ac_l1_pwr_10s = (pv_ac_l1_pwr % 100 + 10)
-      # fixup power to offset the SMA inverter
-      if (pv_ac_l1_pwr_10s < 15):
-        pv_ac_l1_pwr_10s = 100
-
-      line1_inv_outpwr = sma_line1["ExtPwr"] + sma_line1["InvPwr"] - pv_ac_l1_pwr_10s
-    
-    if (pv_ac_l2_pwr == None):
-      line2_inv_outpwr = sma_line2["ExtPwr"] + sma_line2["InvPwr"] 
-    else:
-      pv_ac_l2_pwr_10s = (pv_ac_l2_pwr % 100 + 10)
-      if (pv_ac_l2_pwr_10s < 15):
-        pv_ac_l2_pwr_10s = 100
-      line2_inv_outpwr = sma_line2["ExtPwr"] + sma_line2["InvPwr"] - pv_ac_l2_pwr_10s
+    line1_inv_outpwr = sma_line1["ExtPwr"] + sma_line1["InvPwr"]
+    line2_inv_outpwr = sma_line2["ExtPwr"] + sma_line2["InvPwr"]
 
 
     #print ("After calc Power L1: " + str(line1_inv_outpwr) + "  Power L2: " + str(line2_inv_outpwr))
 
-    #only do this with Dc coupled till it can be tested against AC coupled\
-    if (pv_ac_l1_pwr == None and pv_ac_l2_pwr == None):
-      #we can gain back a little bit of resolution by compairing total reported load to sum of line loads reported to remove one source of rounding error.
-      if (sma_system["Load"] == (line1_inv_outpwr + line2_inv_outpwr + 100)):
-        line1_inv_outpwr+=50
-        line2_inv_outpwr+=50
+    #we can gain back a little bit of resolution by compairing total reported load to sum of line loads reported to remove one source of rounding error.
+    if (sma_system["Load"] == (line1_inv_outpwr + line2_inv_outpwr + 100)):
+      line1_inv_outpwr+=50
+      line2_inv_outpwr+=50
 
     self._dbusservice["/Ac/Out/L1/P"] = line1_inv_outpwr
     self._dbusservice["/Ac/Out/L2/P"] = line2_inv_outpwr
