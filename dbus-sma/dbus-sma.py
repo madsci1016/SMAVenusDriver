@@ -406,7 +406,11 @@ class SmaDriver:
             sma_system["ExtOk"] = 0 
             #print ("Grid OK")
           else:
-            sma_system["ExtOk"] = 2
+            #it seems to always report grid down once during relay transfer, so lets wait for two messages to latch. 
+            if sma_system["ExtOk"] == 0:
+              sma_system["ExtOk"] = 1
+            elif sma_system["ExtOk"] == 1:
+              sma_system["ExtOk"] = 2
             #print ("Grid Down")
         
           #print ("307 message" )
@@ -432,7 +436,8 @@ class SmaDriver:
     self._dbusservice["/Ac/ActiveIn/L2/V"] = sma_line2["ExtVoltage"]
     self._dbusservice["/Ac/ActiveIn/L1/F"] = sma_line1["ExtFreq"]
     self._dbusservice["/Ac/ActiveIn/L2/F"] = sma_line1["ExtFreq"]
-    self._dbusservice["/Alarms/GridLost"] = sma_system["ExtOk"]
+    if sma_system["ExtOk"] == 0 or sma_system["ExtOk"] == 2:
+      self._dbusservice["/Alarms/GridLost"] = sma_system["ExtOk"]
     if sma_line1["ExtVoltage"] != 0:
       self._dbusservice["/Ac/ActiveIn/L1/I"] = int(sma_line1["ExtPwr"] / sma_line1["ExtVoltage"])
     if sma_line2["ExtVoltage"] != 0:
@@ -452,6 +457,9 @@ class SmaDriver:
     if (sma_system["Load"] == (line1_inv_outpwr + line2_inv_outpwr + 100)):
       line1_inv_outpwr+=50
       line2_inv_outpwr+=50
+    elif (sma_system["Load"] == (line1_inv_outpwr + line2_inv_outpwr - 100)):
+      line1_inv_outpwr-=50
+      line2_inv_outpwr-=50
 
     self._dbusservice["/Ac/Out/L1/P"] = line1_inv_outpwr
     self._dbusservice["/Ac/Out/L2/P"] = line2_inv_outpwr
