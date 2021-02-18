@@ -94,7 +94,7 @@ sma_line2 = {"OutputVoltage": 0, "ExtPwr": 0, "InvPwr": 0, "ExtVoltage": 0}
 sma_battery = {"Voltage": 0, "Current": 0}
 sma_system = {"State": 0, "ExtRelay" : 0, "ExtOk" : 0, "Load" : 0}
 
-settings = 0
+#settings = 0
 
 #command packets to turn SMAs on or off
 SMA_ON_MSG = can.Message(arbitration_id = 0x35C,    #on
@@ -195,21 +195,21 @@ class SmaDriver:
 
     # Add the AcInput1 setting if it doesn't exist so that the grid data is reported
     # to the system by dbus-systemcalc-py service
-    settings = SettingsDevice(
-       bus=dbus.SystemBus(),# if (platform.machine() == 'armv7l') else dbus.SessionBus(),
-       supportedSettings={
-           'acinput': ['/Settings/SystemSetup/AcInput1', 1, 0, 0],
-           'hub4mode': ['/Settings/CGwacs/Hub4Mode', 3, 0, 0], 
-           'gridmeter': ['/Settings/CGwacs/RunWithoutGridMeter', 1, 0, 0], 
-           'acsetpoint': ['/Settings/CGwacs/AcPowerSetPoint', 0, 0, 0],
-           'maxchargepwr': ['/Settings/CGwacs/MaxChargePower', 0, 0, 0],
-           'maxdischargepwr': ['/Settings/CGwacs/MaxDischargePower', 0, 0, 0],
-           'maxchargepercent': ['/Settings/CGwacs/MaxChargePercentage', 0, 0, 0],
-           'maxdischargepercent': ['/Settings/CGwacs/MaxDischargePercentage', 0, 0, 0],
-           'essMode': ['/Settings/CGwacs/BatteryLife/State', 0, 0, 0],
-           },
-       eventCallback=None)
+    
+    sTree={
+      'acinput': ['/Settings/SystemSetup/AcInput1', 1, 0, 0],
+      'hub4mode': ['/Settings/CGwacs/Hub4Mode', 3, 0, 0], 
+      'gridmeter': ['/Settings/CGwacs/RunWithoutGridMeter', 1, 0, 0], 
+      'acsetpoint': ['/Settings/CGwacs/AcPowerSetPoint', 0, 0, 0],
+      'maxchargepwr': ['/Settings/CGwacs/MaxChargePower', 0, 0, 0],
+      'maxdischargepwr': ['/Settings/CGwacs/MaxDischargePower', 0, 0, 0],
+      'maxchargepercent': ['/Settings/CGwacs/MaxChargePercentage', 0, 0, 0],
+      'maxdischargepercent': ['/Settings/CGwacs/MaxDischargePercentage', 0, 0, 0],
+      'essMode': ['/Settings/CGwacs/BatteryLife/State', 0, 0, 0],
+    }
 
+
+    self._dbussettings = self._create_dbus_settings(dbus.SystemBus(), sTree, eventCallback=None )
 
 		# Why this dummy? Because DbusMonitor expects these values to be there, even though we don't
 		# need them. So just add some dummy data. This can go away when DbusMonitor is more generic.
@@ -326,6 +326,9 @@ class SmaDriver:
 #----
   def _create_dbus_monitor(self, *args, **kwargs):
     return DbusMonitor(*args, **kwargs)  
+
+  def _create_dbus_settings(self, *args, **kwargs):
+    return SettingsDevice(*args, **kwargs) 
 
 #----	
   def _create_dbus_service(self):
@@ -670,6 +673,8 @@ class SmaDriver:
         if(sma_system["State"] != 0): 
           self._safety_off = False
         #print("Start SMA due to grid restore or SoC increase")
+
+    print(self._dbussettings['essMode'])
 
     #breakup some of the values for CAN packing
     SoC_HD = int(self._bms_data.state_of_charge*100)
