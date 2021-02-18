@@ -42,6 +42,7 @@ then
     pip install python-can
     pip install python-statemachine
     pip install pyyaml
+    pip install pytz
   fi
 
 	echo "==== Download driver and library ===="

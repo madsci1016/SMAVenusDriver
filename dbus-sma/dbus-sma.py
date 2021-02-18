@@ -17,6 +17,7 @@ import serial
 import socket
 import logging
 import yaml
+import pytz
 
 from dbus.mainloop.glib import DBusGMainLoop
 import dbus
@@ -206,6 +207,13 @@ class SmaDriver:
       'maxchargepercent': ['/Settings/CGwacs/MaxChargePercentage', 0, 0, 0],
       'maxdischargepercent': ['/Settings/CGwacs/MaxDischargePercentage', 0, 0, 0],
       'essMode': ['/Settings/CGwacs/BatteryLife/State', 0, 0, 0],
+      'timezone': ['/Settings/System/TimeZone', 0,0,0],
+      'SMABulkChgA': ['/Settings/SMA/BulkChgA', 3,0,0],
+      'SMAGdSocBand': ['/Settings/SMA/GdSocBand', 5,0,100],
+      'SMAGdTM1Soc': ['/Settings/SMA/GdTM1Soc', 0,0,100],
+      'SMAGdTM2Soc': ['/Settings/SMA/GdTM2Soc', 0,0,100],
+      'SMAGdTM1Time': ['/Settings/SMA/GdTM1Time', 0,0,23],
+      'SMAGdTM2Time': ['/Settings/SMA/GdTM2Time', 0,0,23],
     }
 
 
@@ -501,6 +509,8 @@ class SmaDriver:
         if (self._bms_data.charging_state == "bulk_chg"):
           vebusChargeState = 1
           sma_system["State"] = 3
+          if(sma_system["ExtRelay"] == 1 and sma_battery["Current"] > -5):
+            sma_system["State"] = 8
         elif (self._bms_data.charging_state == "absorb_chg"):
           vebusChargeState = 2
           sma_system["State"] = 4
@@ -542,6 +552,10 @@ class SmaDriver:
     charge_amps = None
 
     # time in UTC
+    timezone = pytz.timezone(self._dbussettings['timezone'])
+
+    here = datetime.now(timezone)
+    print(here.hour)
     now = datetime.now()
 
     # SMA Sunny Island Feature:
@@ -555,37 +569,57 @@ class SmaDriver:
     # Item 02 GdSocTm1Stp - SOC limit for switching off the utility grid for time 1 = 80%
     # Item 03 GdSocTm2Str - SOC limit for switching on utility grid for time 2 = 40%
     # Item 04 GdSocTm2Stp - SOC limit for switching off the utility grid for time 2 = 80%
+    # ESS set to external, old logic
 
-    if (sma_system["ExtRelay"] == 1):
-      #no point in running the math below to calculate a new target charge current unless we have an update from the inverters
-      #which is slow. Like every 12 seconds. 
-      #global SMAupdate  
-      #if SMAupdate == True:
-      #  SMAupdate = False
-
-      _cfg_grid = self._cfg["GridLogic"]
-      _cfg_safety = self._cfg["SafetyLogic"]
-      #requested charge current varies by time of day and SoC value
-      #for now, some rules to change charge behavior hard coded for my application.
-      #Gonna try making these charge current targets inlcuding solar, so we need to subtract solar current later. 
-      if now.hour >= _cfg_grid["start_hour"] and now.hour <= _cfg_grid["end_hour"]:
-        if now.hour >= _cfg_grid["mid_hour"] and self._bms_data.state_of_charge < 49.0:
-          charge_amps = _cfg_grid["mid_hour_current"]
+    #ESS set to Optimizes, new logic
+    if (self._dbussettings['essMode'] == 10):
+      #before time 1? 
+      if (here.hour >= self._dbussettings['SMAGdTM1Time'] and here.hour < self._dbussettings['SMAGdTM2Time']):
+        if(self._bms_data.state_of_charge < self._dbussettings['SMAGdTM2Soc']):
+          charge_amps = self._dbussettings['SMABulkChgA']
         else:
-          charge_amps = _cfg_grid["current"]
+          charge_amps = 2
+
       else:
-        charge_amps = _cfg_grid["offtime_current"]
+        if(self._bms_data.state_of_charge < self._dbussettings['SMAGdTM1Soc']):
+          charge_amps = self._dbussettings['SMABulkChgA']
+        else:
+          charge_amps = 2
 
-      #TODO: can this use the same value as default bulk current?
-      if self._bms_data.state_of_charge < _cfg_safety["after_blackout_min_soc"]:  #recovering from blackout? Charge fast! 
-        charge_amps = _cfg_safety["after_blackout_charge_amps"]
+    #ess keep charged
+    elif (self._dbussettings['essMode'] == 9):
+      charge_amps = self._dbussettings['SMABulkChgA']
+    else:
+      if (sma_system["ExtRelay"] == 1):
+        #no point in running the math below to calculate a new target charge current unless we have an update from the inverters
+        #which is slow. Like every 12 seconds. 
+        #global SMAupdate  
+        #if SMAupdate == True:
+        #  SMAupdate = False
 
-      #subtract any active Solar current from the requested charge current
-      charge_amps = charge_amps - self._bms_data.pv_current
+        _cfg_grid = self._cfg["GridLogic"]
+        _cfg_safety = self._cfg["SafetyLogic"]
+        #requested charge current varies by time of day and SoC value
+        #for now, some rules to change charge behavior hard coded for my application.
+        #Gonna try making these charge current targets inlcuding solar, so we need to subtract solar current later. 
+        if now.hour >= _cfg_grid["start_hour"] and now.hour <= _cfg_grid["end_hour"]:
+          if now.hour >= _cfg_grid["mid_hour"] and self._bms_data.state_of_charge < 49.0:
+            charge_amps = _cfg_grid["mid_hour_current"]
+          else:
+            charge_amps = _cfg_grid["current"]
+        else:
+          charge_amps = _cfg_grid["offtime_current"]
 
-      # if pv_current is greater than requested charge amps, don't go negative
-      if (charge_amps < 0.0):
-        charge_amps = 0.0
+        #TODO: can this use the same value as default bulk current?
+        if self._bms_data.state_of_charge < _cfg_safety["after_blackout_min_soc"]:  #recovering from blackout? Charge fast! 
+          charge_amps = _cfg_safety["after_blackout_charge_amps"]
+
+        #subtract any active Solar current from the requested charge current
+        charge_amps = charge_amps - self._bms_data.pv_current
+
+        # if pv_current is greater than requested charge amps, don't go negative
+        if (charge_amps < 0.0):
+          charge_amps = 0.0
 
     logger.info("Grid Logic: Time: {0}, On Grid: {1} Charge amps: {2}" \
       .format(now, sma_system["ExtRelay"], charge_amps))
@@ -596,6 +630,14 @@ class SmaDriver:
  	# Called on a two second timer to send CAN messages
   def _can_bus_txmit_handler(self):
   
+     # time in UTC
+    timezone = pytz.timezone(self._dbussettings['timezone'])
+
+    here = datetime.now(timezone)
+    print(here.hour)
+    now = datetime.now()
+
+
     # log data received from SMA on CAN bus (doing it here since this timer is slower!)
     out_load_msg = "SMA: System Load: {0}, Driver runtime: {1}".format(sma_system["Load"], datetime.now() - self.driver_start_time)
 
@@ -645,6 +687,34 @@ class SmaDriver:
     self._bms_data.charging_state = self.bms_controller.get_state()
     charge_current = self.bms_controller.get_charge_current()
   
+    #new control by raspberry pi, by faking Soc sent to inverter to force grid transfer
+    #ESS set to Optimizes, new logic
+    if (self._dbussettings['essMode'] == 10):
+      #SoC2 threshold
+      if (here.hour >= self._dbussettings['SMAGdTM1Time'] and here.hour < self._dbussettings['SMAGdTM2Time']):
+        if (soc < self._dbussettings['SMAGdTM2Soc']): #need grid
+          self._bms_data.state_of_charge = 15.0
+        elif (soc > (self._dbussettings['SMAGdTM2Soc'] + self._dbussettings['SMAGdSocBand'])): # loose grid
+          self._bms_data.state_of_charge = 95.0
+        else: #mid band
+          if(sma_system["ExtRelay"] == 1): #relay closed, mid band
+            self._bms_data.state_of_charge = 15.0
+          else: #relay open mid band
+            self._bms_data.state_of_charge = 95.0
+      else:
+        if (soc < self._dbussettings['SMAGdTM1Soc']): #need grid
+          self._bms_data.state_of_charge = 15.0
+        elif (soc > (self._dbussettings['SMAGdTM1Soc'] + self._dbussettings['SMAGdSocBand'])): # loose grid
+          self._bms_data.state_of_charge = 95.0
+        else: #mid band
+          if(sma_system["ExtRelay"] == 1): #relay closed, mid band
+            self._bms_data.state_of_charge = 15.0
+          else: #relay open mid band
+            self._bms_data.state_of_charge = 95.0
+    #ess keep charged
+    elif (self._dbussettings['essMode'] == 9):
+      self._bms_data.state_of_charge = 15.0
+
     logger.info("BMS Send, SoC: {0:.1f}%, Batt Voltage: {1:.2f}V, Batt Current: {2:.2f}A, Charge State: {3}, Req Charge: {4}A, Req Discharge: {5}A, PV Cur: {6} ". \
         format(self._bms_data.state_of_charge, self._bms_data.actual_battery_voltage, \
         self._bms_data.battery_current, self._bms_data.charging_state, charge_current, 
