@@ -553,6 +553,7 @@ class SmaDriver:
  	# Called on a two second timer to send CAN messages
   def _can_bus_txmit_handler(self):
   
+    charge_amps = None
      # time in UTC
     timezone = pytz.timezone(self._dbussettings['timezone'])
 
@@ -625,7 +626,7 @@ class SmaDriver:
       else:
          #trying an intresting thought where we follw a ramp up during this time
         #calculate duration and SoC expected during this time. 
-        if(here.hour > self._dbussettings['SMAGdTMSunriseTime']):
+        if(here.hour > self._dbussettings['SMAGdTMSunriseTime'] and here.hour < self._dbussettings['SMAGdTM1Time'] ):
           duration = self._dbussettings['SMAGdTM1Time'] - self._dbussettings['SMAGdTMSunriseTime']
           slope = (self._dbussettings['SMAGdTM2Soc'] - self._dbussettings['SMAGdTM1Soc']) / duration 
           soc_goal = (here.hour - self._dbussettings['SMAGdTMSunriseTime']) * slope + self._dbussettings['SMAGdTM1Soc']
@@ -635,7 +636,7 @@ class SmaDriver:
           charge_amps = self._dbussettings['SMABulkChgA']
         else:
           charge_amps = 1.5
-
+    
     #ess keep charged
     elif (self._dbussettings['essMode'] == 9):
       charge_amps = self._dbussettings['SMABulkChgA']
