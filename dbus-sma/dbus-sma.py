@@ -214,6 +214,7 @@ class SmaDriver:
       'SMAGdTM2Soc': ['/Settings/SMA/GdTM2Soc', 0,0,100],
       'SMAGdTM1Time': ['/Settings/SMA/GdTM1Time', 0,0,23],
       'SMAGdTM2Time': ['/Settings/SMA/GdTM2Time', 0,0,23],
+      'SMAGdTMSunriseTime': ['/Settings/SMA/GdSunriseTime', 0,0,23],
     }
 
 
@@ -547,85 +548,7 @@ class SmaDriver:
     return True
 
 #----
-  # BMS charge logic since SMA is in dumb mode
-  def _execute_grid_solar_charge_logic(self):
-    charge_amps = None
 
-    # time in UTC
-    timezone = pytz.timezone(self._dbussettings['timezone'])
-
-    here = datetime.now(timezone)
-    print(here.hour)
-    now = datetime.now()
-
-    # SMA Sunny Island Feature:
-    # Setting 232# Grid Control
-    # Item 41 GdSocEna - Activate the grid request based on SOC (Default: Disable) = Enable
-    #
-    # By enabling this setting the SMA will activate grid to charge batteries. To set the ranges:
-    # Setting 233# Grid Start
-    #
-    # Item 01 GdSocTm1Str - SOC limit for switching on utility grid for time 1 = 40%
-    # Item 02 GdSocTm1Stp - SOC limit for switching off the utility grid for time 1 = 80%
-    # Item 03 GdSocTm2Str - SOC limit for switching on utility grid for time 2 = 40%
-    # Item 04 GdSocTm2Stp - SOC limit for switching off the utility grid for time 2 = 80%
-    # ESS set to external, old logic
-
-    #ESS set to Optimizes, new logic
-    if (self._dbussettings['essMode'] == 10):
-      #before time 1? 
-      if (here.hour >= self._dbussettings['SMAGdTM1Time'] and here.hour < self._dbussettings['SMAGdTM2Time']):
-        if(self._bms_data.state_of_charge < self._dbussettings['SMAGdTM2Soc']):
-          charge_amps = self._dbussettings['SMABulkChgA']
-        else:
-          charge_amps = 2
-
-      else:
-        if(self._bms_data.state_of_charge < self._dbussettings['SMAGdTM1Soc']):
-          charge_amps = self._dbussettings['SMABulkChgA']
-        else:
-          charge_amps = 2
-
-    #ess keep charged
-    elif (self._dbussettings['essMode'] == 9):
-      charge_amps = self._dbussettings['SMABulkChgA']
-    else:
-      if (sma_system["ExtRelay"] == 1):
-        #no point in running the math below to calculate a new target charge current unless we have an update from the inverters
-        #which is slow. Like every 12 seconds. 
-        #global SMAupdate  
-        #if SMAupdate == True:
-        #  SMAupdate = False
-
-        _cfg_grid = self._cfg["GridLogic"]
-        _cfg_safety = self._cfg["SafetyLogic"]
-        #requested charge current varies by time of day and SoC value
-        #for now, some rules to change charge behavior hard coded for my application.
-        #Gonna try making these charge current targets inlcuding solar, so we need to subtract solar current later. 
-        if now.hour >= _cfg_grid["start_hour"] and now.hour <= _cfg_grid["end_hour"]:
-          if now.hour >= _cfg_grid["mid_hour"] and self._bms_data.state_of_charge < 49.0:
-            charge_amps = _cfg_grid["mid_hour_current"]
-          else:
-            charge_amps = _cfg_grid["current"]
-        else:
-          charge_amps = _cfg_grid["offtime_current"]
-
-        #TODO: can this use the same value as default bulk current?
-        if self._bms_data.state_of_charge < _cfg_safety["after_blackout_min_soc"]:  #recovering from blackout? Charge fast! 
-          charge_amps = _cfg_safety["after_blackout_charge_amps"]
-
-        #subtract any active Solar current from the requested charge current
-        charge_amps = charge_amps - self._bms_data.pv_current
-
-        # if pv_current is greater than requested charge amps, don't go negative
-        if (charge_amps < 0.0):
-          charge_amps = 0.0
-
-    logger.info("Grid Logic: Time: {0}, On Grid: {1} Charge amps: {2}" \
-      .format(now, sma_system["ExtRelay"], charge_amps))
-
-    return charge_amps
-  
 #----
  	# Called on a two second timer to send CAN messages
   def _can_bus_txmit_handler(self):
@@ -675,8 +598,84 @@ class SmaDriver:
     self._bms_data.battery_current = current
     self._bms_data.pv_current = pv_current
 
+    #-----------------  Charge Current logic ---------------------#
+
+      # SMA Sunny Island Feature:
+    # Setting 232# Grid Control
+    # Item 41 GdSocEna - Activate the grid request based on SOC (Default: Disable) = Enable
+    #
+    # By enabling this setting the SMA will activate grid to charge batteries. To set the ranges:
+    # Setting 233# Grid Start
+    #
+    # Item 01 GdSocTm1Str - SOC limit for switching on utility grid for time 1 = 40%
+    # Item 02 GdSocTm1Stp - SOC limit for switching off the utility grid for time 1 = 80%
+    # Item 03 GdSocTm2Str - SOC limit for switching on utility grid for time 2 = 40%
+    # Item 04 GdSocTm2Stp - SOC limit for switching off the utility grid for time 2 = 80%
+    # ESS set to external, old logic
+
+    #ESS set to Optimizes, new logic
+    if (self._dbussettings['essMode'] == 10):
+      #before time 1? 
+      if (here.hour >= self._dbussettings['SMAGdTM1Time'] and here.hour < self._dbussettings['SMAGdTM2Time']):
+        if(self._bms_data.state_of_charge < self._dbussettings['SMAGdTM2Soc']):
+          charge_amps = self._dbussettings['SMABulkChgA']
+        else:
+          charge_amps = 1.5
+
+      else:
+         #trying an intresting thought where we follw a ramp up during this time
+        #calculate duration and SoC expected during this time. 
+        if(here.hour > self._dbussettings['SMAGdTMSunriseTime']):
+          duration = self._dbussettings['SMAGdTM1Time'] - self._dbussettings['SMAGdTMSunriseTime']
+          slope = (self._dbussettings['SMAGdTM2Soc'] - self._dbussettings['SMAGdTM1Soc']) / duration 
+          soc_goal = (here.hour - self._dbussettings['SMAGdTMSunriseTime']) * slope + self._dbussettings['SMAGdTM1Soc']
+        else:
+          soc_goal = self._dbussettings['SMAGdTM1Soc']
+        if(self._bms_data.state_of_charge < soc_goal):
+          charge_amps = self._dbussettings['SMABulkChgA']
+        else:
+          charge_amps = 1.5
+
+    #ess keep charged
+    elif (self._dbussettings['essMode'] == 9):
+      charge_amps = self._dbussettings['SMABulkChgA']
+    else:
+      if (sma_system["ExtRelay"] == 1):
+        #no point in running the math below to calculate a new target charge current unless we have an update from the inverters
+        #which is slow. Like every 12 seconds. 
+        #global SMAupdate  
+        #if SMAupdate == True:
+        #  SMAupdate = False
+
+        _cfg_grid = self._cfg["GridLogic"]
+        _cfg_safety = self._cfg["SafetyLogic"]
+        #requested charge current varies by time of day and SoC value
+        #for now, some rules to change charge behavior hard coded for my application.
+        #Gonna try making these charge current targets inlcuding solar, so we need to subtract solar current later. 
+        if now.hour >= _cfg_grid["start_hour"] and now.hour <= _cfg_grid["end_hour"]:
+          if now.hour >= _cfg_grid["mid_hour"] and self._bms_data.state_of_charge < 49.0:
+            charge_amps = _cfg_grid["mid_hour_current"]
+          else:
+            charge_amps = _cfg_grid["current"]
+        else:
+          charge_amps = _cfg_grid["offtime_current"]
+
+        #TODO: can this use the same value as default bulk current?
+        if self._bms_data.state_of_charge < _cfg_safety["after_blackout_min_soc"]:  #recovering from blackout? Charge fast! 
+          charge_amps = _cfg_safety["after_blackout_charge_amps"]
+
+        #subtract any active Solar current from the requested charge current
+        charge_amps = charge_amps - self._bms_data.pv_current
+
+        # if pv_current is greater than requested charge amps, don't go negative
+        if (charge_amps < 0.0):
+          charge_amps = 0.0
+
+    logger.info("Grid Logic: Time: {0}, On Grid: {1} Charge amps: {2}" \
+      .format(now, sma_system["ExtRelay"], charge_amps))
+
     # update the requested bulk current based on the grid solar charge logic
-    self.bms_controller.update_req_bulk_current(self._execute_grid_solar_charge_logic())
+    self.bms_controller.update_req_bulk_current(charge_amps)
 
     # update the battery voltage for the BMS to determine next state or charge current level
     # Note: Positive value for current means it is going INTO the battery. SMA will report as negative
@@ -686,7 +685,9 @@ class SmaDriver:
 
     self._bms_data.charging_state = self.bms_controller.get_state()
     charge_current = self.bms_controller.get_charge_current()
-  
+
+#-------------------------------- Inverter control through fake SoC reports ----------------------  
+
     #new control by raspberry pi, by faking Soc sent to inverter to force grid transfer
     #ESS set to Optimizes, new logic
     if (self._dbussettings['essMode'] == 10):
@@ -702,9 +703,9 @@ class SmaDriver:
           else: #relay open mid band
             self._bms_data.state_of_charge = 95.0
       else:
-        if (soc < self._dbussettings['SMAGdTM1Soc']): #need grid
+        if (soc < soc_goal): #need grid
           self._bms_data.state_of_charge = 15.0
-        elif (soc > (self._dbussettings['SMAGdTM1Soc'] + self._dbussettings['SMAGdSocBand'])): # loose grid
+        elif (soc > (soc_goal + self._dbussettings['SMAGdSocBand'])): # loose grid
           self._bms_data.state_of_charge = 95.0
         else: #mid band
           if(sma_system["ExtRelay"] == 1): #relay closed, mid band
