@@ -209,6 +209,7 @@ class SmaDriver:
       'essMode': ['/Settings/CGwacs/BatteryLife/State', 0, 0, 0],
       'timezone': ['/Settings/System/TimeZone', 0,0,0],
       'SMABulkChgA': ['/Settings/SMA/BulkChgA', 3,0,0],
+      'SMARampChgA': ['/Settings/SMA/RampChgA', 3,0,0],
       'SMAGdSocBand': ['/Settings/SMA/GdSocBand', 5,0,100],
       'SMAGdTM1Soc': ['/Settings/SMA/GdTM1Soc', 0,0,100],
       'SMAGdTM2Soc': ['/Settings/SMA/GdTM2Soc', 0,0,100],
@@ -456,8 +457,12 @@ class SmaDriver:
       self._dbusservice["/Ac/ActiveIn/L2/I"] = int(sma_line2["ExtPwr"] / sma_line2["ExtVoltage"])
     self._dbusservice["/Ac/ActiveIn/P"] = sma_line1["ExtPwr"] + sma_line2["ExtPwr"]
     self._dbusservice["/Dc/0/Voltage"] = sma_battery["Voltage"]
-    self._dbusservice["/Dc/0/Current"] = sma_battery["Current"] *-1
-    self._dbusservice["/Dc/0/Power"] = sma_battery["Current"] * sma_battery["Voltage"] *-1
+    if(sma_battery["Current"] < 2 and sma_battery["Current"] > -2): 
+      self._dbusservice["/Dc/0/Current"] = 0
+      self._dbusservice["/Dc/0/Power"] = 0
+    else:
+      self._dbusservice["/Dc/0/Current"] = sma_battery["Current"] *-1
+      self._dbusservice["/Dc/0/Power"] = sma_battery["Current"] * sma_battery["Voltage"] *-1
     
     line1_inv_outpwr = sma_line1["ExtPwr"] + sma_line1["InvPwr"]
     line2_inv_outpwr = sma_line2["ExtPwr"] + sma_line2["InvPwr"]
@@ -506,7 +511,7 @@ class SmaDriver:
     if (inverter_on > 0):
       sma_system["State"] = 9
       # if current is going into the battery  
-      if (self._bms_data.battery_current > 0):
+      if (sma_battery["Current"] < 0):
         if (self._bms_data.charging_state == "bulk_chg"):
           vebusChargeState = 1
           sma_system["State"] = 3
@@ -621,7 +626,7 @@ class SmaDriver:
         if(self._bms_data.state_of_charge < self._dbussettings['SMAGdTM2Soc']):
           charge_amps = self._dbussettings['SMABulkChgA']
         else:
-          charge_amps = 1.5
+          charge_amps = 1.25
 
       else:
          #trying an intresting thought where we follw a ramp up during this time
@@ -633,9 +638,9 @@ class SmaDriver:
         else:
           soc_goal = self._dbussettings['SMAGdTM1Soc']
         if(self._bms_data.state_of_charge < soc_goal):
-          charge_amps = self._dbussettings['SMABulkChgA']
+          charge_amps = self._dbussettings['SMARampChgA']
         else:
-          charge_amps = 1.5
+          charge_amps = 1.25
     
     #ess keep charged
     elif (self._dbussettings['essMode'] == 9):
@@ -665,12 +670,14 @@ class SmaDriver:
         if self._bms_data.state_of_charge < _cfg_safety["after_blackout_min_soc"]:  #recovering from blackout? Charge fast! 
           charge_amps = _cfg_safety["after_blackout_charge_amps"]
 
-        #subtract any active Solar current from the requested charge current
-        charge_amps = charge_amps - self._bms_data.pv_current
+        
 
-        # if pv_current is greater than requested charge amps, don't go negative
-        if (charge_amps < 0.0):
-          charge_amps = 0.0
+    #subtract any active Solar current from the requested charge current
+    if (charge_amps != None):
+      charge_amps = charge_amps - self._bms_data.pv_current
+      # if pv_current is greater than requested charge amps, don't go negative
+      if (charge_amps < 0.0):
+        charge_amps = 1.25
 
     logger.info("Grid Logic: Time: {0}, On Grid: {1} Charge amps: {2}" \
       .format(now, sma_system["ExtRelay"], charge_amps))
