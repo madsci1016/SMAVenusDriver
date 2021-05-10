@@ -118,6 +118,9 @@ def getSignedNumber(number, bitLength):
 def bytes(integer):
     return divmod(integer, 0x100)
 
+def range_map(x, in_min, in_max, out_min, out_max):
+    return int((x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min)
+
 class BMSData:
   def __init__(self, max_battery_voltage, min_battery_voltage, low_battery_voltage, \
     charge_bulk_amps, max_discharge_amps, charge_absorb_voltage, charge_float_voltage, \
@@ -622,11 +625,12 @@ class SmaDriver:
   def _can_bus_txmit_handler(self):
   
     charge_amps = None
+    fake_soc = 0.0
      # time in UTC
     timezone = pytz.timezone(self._dbussettings['timezone'])
 
     here = datetime.now(timezone)
-    print(here.hour)
+    #print(here.hour)
     now = datetime.now()
 
 
@@ -684,27 +688,52 @@ class SmaDriver:
 
     #ESS set to Optimizes, new logic
     if (self._dbussettings['essMode'] == 10):
-      #before time 1? 
-      if (here.hour >= self._dbussettings['SMAGdTM1Time'] and here.hour < self._dbussettings['SMAGdTM2Time']):
-        if(self._bms_data.state_of_charge < self._dbussettings['SMAGdTM2Soc']):
-          charge_amps = self._dbussettings['SMABulkChgA']
-        else:
-          charge_amps = 1.25
+      #prototype ramp feature. Will follow minimum SOC ramps defined in settings. 
+        
+      #new way
+      if here.hour < self._dbussettings['SMAGdTMSunriseTime']:
+        #morning period (ramp down, does the same thing as evening, but with wrap around)
+        
+        soc_goal = range_map(here.hour, self._dbussettings['SMAGdTM2Time'] - 24, \
+          self._dbussettings['SMAGdTMSunriseTime'], \
+          self._dbussettings['SMAGdTM2Soc'], self._dbussettings['SMAGdTM1Soc'] )
+  
+      elif (here.hour >= self._dbussettings['SMAGdTMSunriseTime'] and here.hour < self._dbussettings['SMAGdTM1Time']):
+        #mid day period  (ramp up)
+        
+        soc_goal = range_map(here.hour, self._dbussettings['SMAGdTMSunriseTime'], self._dbussettings['SMAGdTM1Time'], \
+          self._dbussettings['SMAGdTM1Soc'], self._dbussettings['SMAGdTM2Soc']  )
+      
+      elif (here.hour >= self._dbussettings['SMAGdTM1Time'] and here.hour < self._dbussettings['SMAGdTM2Time']):
+        #mid day hold time. No ramp. 
+        soc_goal = self._dbussettings['SMAGdTM2Soc']
+      else :
+        #evening period  (ramp down)
+      
+        soc_goal = range_map(here.hour, self._dbussettings['SMAGdTM2Time'], \
+          24 + self._dbussettings['SMAGdTMSunriseTime'], \
+          self._dbussettings['SMAGdTM2Soc'], self._dbussettings['SMAGdTM1Soc'] )
+      
+      #print "SOC GOAL"
+      #print soc_goal
 
+      if(soc_goal < 0 or soc_goal > 100):
+        soc_goal = 50
+
+      # set charge current and fake Soc based off what we want inverters to do. 
+      if(self._bms_data.state_of_charge < soc_goal):
+        #charge hard
+        charge_amps = self._dbussettings['SMARampChgA']
+        fake_soc = 15.0
+      elif (self._bms_data.state_of_charge < soc_goal + self._dbussettings['SMAGdSocBand']): 
+        #passthrough
+        fake_soc = 15.0
+        charge_amps = 1.25
       else:
-         #trying an intresting thought where we follw a ramp up during this time
-        #calculate duration and SoC expected during this time. 
-        if(here.hour > self._dbussettings['SMAGdTMSunriseTime'] and here.hour < self._dbussettings['SMAGdTM1Time'] ):
-          duration = self._dbussettings['SMAGdTM1Time'] - self._dbussettings['SMAGdTMSunriseTime']
-          slope = (self._dbussettings['SMAGdTM2Soc'] - self._dbussettings['SMAGdTM1Soc']) / duration 
-          soc_goal = (here.hour - self._dbussettings['SMAGdTMSunriseTime']) * slope + self._dbussettings['SMAGdTM1Soc']
-        else:
-          soc_goal = self._dbussettings['SMAGdTM1Soc']
-        if(self._bms_data.state_of_charge < soc_goal):
-          charge_amps = self._dbussettings['SMARampChgA']
-        else:
-          charge_amps = 1.25
-    
+        #Off grid
+        fake_soc = 95.0
+        charge_amps = self._dbussettings['SMABulkChgA']
+  
     #ess keep charged
     elif (self._dbussettings['essMode'] == 9):
       charge_amps = self._dbussettings['SMABulkChgA']
@@ -761,29 +790,10 @@ class SmaDriver:
 
     #new control by raspberry pi, by faking Soc sent to inverter to force grid transfer
     #ESS set to Optimizes, new logic
+    
     if (self._dbussettings['essMode'] == 10):
-      #SoC2 threshold
-      if (here.hour >= self._dbussettings['SMAGdTM1Time'] and here.hour < self._dbussettings['SMAGdTM2Time']):
-        if (soc < self._dbussettings['SMAGdTM2Soc']): #need grid
-          self._bms_data.state_of_charge = 15.0
-        elif (soc > (self._dbussettings['SMAGdTM2Soc'] + self._dbussettings['SMAGdSocBand'])): # loose grid
-          self._bms_data.state_of_charge = 95.0
-        else: #mid band
-          if(sma_system["ExtRelay"] == 1): #relay closed, mid band
-            self._bms_data.state_of_charge = 15.0
-          else: #relay open mid band
-            self._bms_data.state_of_charge = 95.0
-      else:
-        if (soc < soc_goal): #need grid
-          self._bms_data.state_of_charge = 15.0
-        elif (soc > (soc_goal + self._dbussettings['SMAGdSocBand'])): # loose grid
-          self._bms_data.state_of_charge = 95.0
-        else: #mid band
-          if(sma_system["ExtRelay"] == 1): #relay closed, mid band
-            self._bms_data.state_of_charge = 15.0
-          else: #relay open mid band
-            self._bms_data.state_of_charge = 95.0
-    #ess keep charged
+      self._bms_data.state_of_charge = fake_soc
+
     elif (self._dbussettings['essMode'] == 9):
       self._bms_data.state_of_charge = 15.0
 
@@ -816,9 +826,10 @@ class SmaDriver:
           self._safety_off = False
         #print("Start SMA due to grid restore or SoC increase")
 
-    print(self._dbussettings['essMode'])
+    #print(self._dbussettings['essMode'])
 
     #breakup some of the values for CAN packing
+    #print self._bms_data.state_of_charge
     SoC_HD = int(self._bms_data.state_of_charge*100)
     SoC_HD_H, SoC_HD_L = bytes(SoC_HD)
 
