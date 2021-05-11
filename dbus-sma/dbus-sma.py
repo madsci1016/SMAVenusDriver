@@ -720,19 +720,25 @@ class SmaDriver:
       if(soc_goal < 0 or soc_goal > 100):
         soc_goal = 50
 
+
       # set charge current and fake Soc based off what we want inverters to do. 
       if(self._bms_data.state_of_charge < soc_goal):
         #charge hard
         charge_amps = self._dbussettings['SMARampChgA']
         fake_soc = 15.0
-      elif (self._bms_data.state_of_charge < soc_goal + self._dbussettings['SMAGdSocBand']): 
-        #passthrough
-        fake_soc = 15.0
-        charge_amps = 1.25
-      else:
+      elif (self._bms_data.state_of_charge > soc_goal + self._dbussettings['SMAGdSocBand']): 
         #Off grid
         fake_soc = 95.0
         charge_amps = self._dbussettings['SMABulkChgA']
+      else:
+        #passthrough
+        # for Hysteresis change base on current state
+        if(sma_system["ExtRelay"] == 1): #relay closed, mid band
+          fake_soc = 15.0
+        else:
+          fake_soc = 95.0
+        charge_amps = 1.25
+
   
     #ess keep charged
     elif (self._dbussettings['essMode'] == 9):
