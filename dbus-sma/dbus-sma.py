@@ -93,7 +93,7 @@ CANFrames = {"ExtPwr": 0x300, "InvPwr": 0x301, "OutputVoltage": 0x304, "Battery"
 sma_line1 = {"OutputVoltage": 0, "ExtPwr": 0, "InvPwr": 0, "ExtVoltage": 0, "ExtFreq": 0.00, "OutputFreq": 0.00}
 sma_line2 = {"OutputVoltage": 0, "ExtPwr": 0, "InvPwr": 0, "ExtVoltage": 0}
 sma_battery = {"Voltage": 0, "Current": 0}
-sma_system = {"State": 0, "ExtRelay" : 0, "ExtOk" : 0, "Load" : 0}
+sma_system = {"State": 0, "ExtRelay" : 0, "ExtOk" : 0, "Load" : 0, "SocGoal" : 0}
 
 #settings = 0
 
@@ -291,6 +291,7 @@ class SmaDriver:
     self._dbusservice.add_path('/Dc/0/Current',           -1)
     self._dbusservice.add_path('/Ac/NumberOfPhases',       2)
     self._dbusservice.add_path('/Alarms/GridLost',         0)
+    self._dbusservice.add_path('/Logic/SocGoal',           0)
 
     # /VebusChargeState  <- 1. Bulk
     #                       2. Absorption
@@ -454,6 +455,7 @@ class SmaDriver:
 #----
   def _updatedbus(self):
     #self._dbusservice["/State"] = sma_system["State"]
+    self._dbusservice["/Logic/SocGoal"] = sma_system["SocGoal"]
     self._dbusservice["/Ac/ActiveIn/L1/P"] = sma_line1["ExtPwr"]
     self._dbusservice["/Ac/ActiveIn/L2/P"] = sma_line2["ExtPwr"]
     self._dbusservice["/Ac/ActiveIn/L1/V"] = sma_line1["ExtVoltage"]
@@ -716,6 +718,7 @@ class SmaDriver:
       
       #print "SOC GOAL"
       #print soc_goal
+      sma_system["SocGoal"] = soc_goal
 
       if(soc_goal < 0 or soc_goal > 100):
         soc_goal = 50
