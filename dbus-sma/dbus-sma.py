@@ -746,9 +746,10 @@ class SmaDriver:
     #ess keep charged. For me that means hold at SMAGdTM2Soc
     elif (self._dbussettings['essMode'] == 9):
       #charge_amps = self._dbussettings['SMABulkChgA']
-
+      
       soc_goal = self._dbussettings['SMAGdTM2Soc']
-
+      sma_system["SocGoal"] = soc_goal
+    
       # set charge current and fake Soc based off what we want inverters to do. 
       if(self._bms_data.state_of_charge < soc_goal):
         #charge hard
@@ -826,7 +827,7 @@ class SmaDriver:
       self._bms_data.state_of_charge = fake_soc
 
     elif (self._dbussettings['essMode'] == 9):
-      self._bms_data.state_of_charge = 15.0
+      self._bms_data.state_of_charge = fake_soc
 
     logger.info("BMS Send, SoC: {0:.1f}%, Batt Voltage: {1:.2f}V, Batt Current: {2:.2f}A, Charge State: {3}, Req Charge: {4}A, Req Discharge: {5}A, PV Cur: {6} ". \
         format(self._bms_data.state_of_charge, self._bms_data.actual_battery_voltage, \
