@@ -674,7 +674,7 @@ class SmaDriver:
     self._dbusservice["/Energy/AcIn2ToAcOut"] = self._dbusservice["/Energy/GensetToAcOut"]
     self._dbusservice["/Energy/AcIn2ToInverter"] = self._dbusservice["/Energy/GensetToDc"]
     self._dbusservice["/Energy/AcOutToAcIn2"] = self._dbusservice["/Energy/AcOutToGenset"]
-    self._dbusservice["/Energy/InverterToAcIn2"] = self._dbusservice["/Energy/DcToGenset"]
+    
 
 
 
