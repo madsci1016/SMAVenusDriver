@@ -425,11 +425,16 @@ class SmaDriver:
           self._updatedbus()   
         elif msg.arbitration_id == CANFrames["Bits"]:
           if msg.data[1]&8:  #Generator input, which never shows as GdOn when there
-            sma_system["AcInput"] = 2
-          elif.data[2]&128:
-            sma_system["AcInput"] = 1
+            if msg.data[2]&64: #connected if shows good
+              sma_system["AcInput"] = 2
+            else:
+              sma_system["AcInput"] = 240
           else:
-            sma_system["AcInput"] = 240
+            if msg.data[2]&128:
+              sma_system["AcInput"] = 1
+            else:
+              sma_system["AcInput"] = 240
+
          # if msg.data[2]&128:
           #  sma_system["ExtRelay"] = 1
          # else:
@@ -515,7 +520,7 @@ class SmaDriver:
       inverter_on += 1
 
     self._dbusservice["/Ac/ActiveIn/ActiveInput"] = sma_system["AcInput"]
-    if sma_system["AcInput"] = 240:
+    if sma_system["AcInput"] == 240:
       self._dbusservice["/Ac/ActiveIn/Connected"] = 0
     else:
       self._dbusservice["/Ac/ActiveIn/Connected"] = 1
