@@ -93,7 +93,7 @@ CANFrames = {"ExtPwr": 0x300, "InvPwr": 0x301, "OutputVoltage": 0x304, "Battery"
 sma_line1 = {"OutputVoltage": 0, "ExtPwr": 0, "InvPwr": 0, "ExtVoltage": 0, "ExtFreq": 0.00, "OutputFreq": 0.00}
 sma_line2 = {"OutputVoltage": 0, "ExtPwr": 0, "InvPwr": 0, "ExtVoltage": 0}
 sma_battery = {"Voltage": 0, "Current": 0}
-sma_system = {"State": 0, "ExtRelay" : 0, "ExtOk" : 0, "Load" : 0, "SocGoal" : 0}
+sma_system = {"State": 0, "ExtRelay" : 0, "ExtOk" : 0, "Load" : 0, "SocGoal" : 0, "AcInput" : 0}
 
 #settings = 0
 
@@ -423,10 +423,16 @@ class SmaDriver:
           sma_battery["Current"] = float(getSignedNumber(msg.data[2] + msg.data[3]*256, 16)) / 10
           self._updatedbus()   
         elif msg.arbitration_id == CANFrames["Bits"]:
-          if msg.data[2]&128:
-            sma_system["ExtRelay"] = 1
-          else:
-            sma_system["ExtRelay"] = 0
+          if msg.data[1]&8:  #Generator input, which never shows as GdOn when there
+            sma_system["AcInput"] = 2
+          else if msg.data[2]&128:
+            sma_system["AcInput"] = 1
+          else
+            sma_system["AcInput"] = 240
+         # if msg.data[2]&128:
+          #  sma_system["ExtRelay"] = 1
+         # else:
+          #  sma_system["ExtRelay"] = 0
           if msg.data[2]&64:
             sma_system["ExtOk"] = 0 
             #print ("Grid OK")
@@ -507,12 +513,18 @@ class SmaDriver:
       self._dbusservice["/Ac/Out/L2/I"] = int(line2_inv_outpwr / sma_line2["OutputVoltage"])
       inverter_on += 1
 
-    if sma_system["ExtRelay"]:
-      self._dbusservice["/Ac/ActiveIn/Connected"] = 1
-      self._dbusservice["/Ac/ActiveIn/ActiveInput"] = 0
-    else:
+    self._dbusservice["/Ac/ActiveIn/ActiveInput"] = sma_system["AcInput"]
+    if sma_system["AcInput"] = 240:
       self._dbusservice["/Ac/ActiveIn/Connected"] = 0
-      self._dbusservice["/Ac/ActiveIn/ActiveInput"] = 240
+    else:
+      self._dbusservice["/Ac/ActiveIn/Connected"] = 1
+
+    #if sma_system["ExtRelay"]:
+    #  self._dbusservice["/Ac/ActiveIn/Connected"] = 1
+    #  self._dbusservice["/Ac/ActiveIn/ActiveInput"] = 0
+    #else:
+    #  self._dbusservice["/Ac/ActiveIn/Connected"] = 0
+    #  self._dbusservice["/Ac/ActiveIn/ActiveInput"] = 240
 
     # state = 3:Bulk, 4:Absorb, 5:Float, 6:Storage, 7:Equalize, 8:Passthrough 9:Inverting 
     # push charging state to dbus
@@ -840,7 +852,7 @@ class SmaDriver:
 
     #if grid is up but battery low voltage, issue with shunt calibration or SMA setting, pre-empt SoC with minimum value to force grid transfer
     if (sma_system["ExtOk"] == 0 and self._bms_data.actual_battery_voltage < self._bms_data.low_battery_voltage):
-      self._bms_data.state_of_charge = 1.0
+      self._bms_data.state_of_charge = 10.0
 
     #if no grid and Soc is low, we are in blackout with dead batteries and need to shut off inverters
     if(self._safety_off == False):
