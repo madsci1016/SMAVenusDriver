@@ -827,6 +827,11 @@ class SmaDriver:
       # if pv_current is greater than requested charge amps, don't go negative
       if (charge_amps < 0.0):
         charge_amps = 1.25
+    
+    #generator mode overrides all. Just grab full current. 
+    if sma_system["AcInput"] == 1:
+      charge_amps = self._dbussettings['SMABulkChgA']
+
 
     logger.info("Grid Logic: Time: {0}, On Grid: {1} Charge amps: {2}" \
       .format(now, sma_system["ExtRelay"], charge_amps))
