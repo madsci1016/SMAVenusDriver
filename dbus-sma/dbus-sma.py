@@ -306,11 +306,14 @@ class SmaDriver:
 
     # Some attempts at logging consumption. Float of kwhr since driver start (i think)
     self._dbusservice.add_path('/Energy/GridToDc',         0)
+    self._dbusservice.add_path('/Energy/GensetToDc',         0)
     self._dbusservice.add_path('/Energy/GridToAcOut',      0)
+    self._dbusservice.add_path('/Energy/GensetToAcOut',      0)
     self._dbusservice.add_path('/Energy/DcToAcOut',        0)
     self._dbusservice.add_path('/Energy/DcToGrid',         0)
     self._dbusservice.add_path('/Energy/AcOutToDc',        0)
     self._dbusservice.add_path('/Energy/AcOutToGrid',      0)
+    self._dbusservice.add_path('/Energy/AcOutToGenset',      0)
 
     self._dbusservice.add_path('/Energy/AcIn1ToInverter',  0)
     self._dbusservice.add_path('/Energy/AcIn2ToInverter',  0)
@@ -573,44 +576,80 @@ class SmaDriver:
           (self._dbusservice["/Dc/0/Power"]  * energy_sec * 0.00000028)
       else :
         # we can have power from grid and too load, or from load and from grid, or from load and too grid as well
-        if self._dbusservice["/Ac/ActiveIn/P"] > 0 : #power from grid IN
-          if self._dbusservice["/Ac/Out/P"] > 0 :  #AC going OUT of ACout
-            self._dbusservice["/Energy/GridToAcOut"] = self._dbusservice["/Energy/GridToAcOut"] + \
-              ((self._dbusservice["/Ac/Out/P"]) * energy_sec * 0.00000028)
-            self._dbusservice["/Energy/GridToDc"] = self._dbusservice["/Energy/GridToDc"] + \
-              (self._dbusservice["/Dc/0/Power"]  * energy_sec * 0.00000028)
-          else :  # Battery is charging from AC out too! 
+        if sma_system["AcInput"] == 0: #grid input
+          if self._dbusservice["/Ac/ActiveIn/P"] > 0 : #power from grid IN
+            if self._dbusservice["/Ac/Out/P"] > 0 :  #AC going OUT of ACout
+              self._dbusservice["/Energy/GridToAcOut"] = self._dbusservice["/Energy/GridToAcOut"] + \
+                ((self._dbusservice["/Ac/Out/P"]) * energy_sec * 0.00000028)
+              self._dbusservice["/Energy/GridToDc"] = self._dbusservice["/Energy/GridToDc"] + \
+                (self._dbusservice["/Dc/0/Power"]  * energy_sec * 0.00000028)
+            else :  # Battery is charging from AC out too! 
+              self._dbusservice["/Energy/AcOutToDc"] = self._dbusservice["/Energy/AcOutToDc"] + \
+                ((self._dbusservice["/Ac/Out/P"]) * energy_sec * 0.00000028 *-1)
+              self._dbusservice["/Energy/GridToDc"] = self._dbusservice["/Energy/GridToDc"] + \
+                (self._dbusservice["/Ac/ActiveIn/P"]  * energy_sec * 0.00000028)
+          else :  # power also being sent to grid, must all be coming from AC solar
+            self._dbusservice["/Energy/AcOutToGrid"] = self._dbusservice["/Energy/AcOutToGrid"] + \
+              ((self._dbusservice["/Ac/ActiveIn/P"]) * energy_sec * 0.00000028 * -1)
             self._dbusservice["/Energy/AcOutToDc"] = self._dbusservice["/Energy/AcOutToDc"] + \
-              ((self._dbusservice["/Ac/Out/P"]) * energy_sec * 0.00000028 *-1)
-            self._dbusservice["/Energy/GridToDc"] = self._dbusservice["/Energy/GridToDc"] + \
-              (self._dbusservice["/Ac/ActiveIn/P"]  * energy_sec * 0.00000028)
-        else :  # power also being sent to grid, must all be coming from AC solar
-          self._dbusservice["/Energy/AcOutToGrid"] = self._dbusservice["/Energy/AcOutToGrid"] + \
-            ((self._dbusservice["/Ac/ActiveIn/P"]) * energy_sec * 0.00000028 * -1)
-          self._dbusservice["/Energy/AcOutToDc"] = self._dbusservice["/Energy/AcOutToDc"] + \
-            (self._dbusservice["/Dc/0/Power"]  * energy_sec * 0.00000028)
+              (self._dbusservice["/Dc/0/Power"]  * energy_sec * 0.00000028)
+        else: # gen input
+           if self._dbusservice["/Ac/ActiveIn/P"] > 0 : #power from grid IN
+            if self._dbusservice["/Ac/Out/P"] > 0 :  #AC going OUT of ACout
+              self._dbusservice["/Energy/GensetToAcOut"] = self._dbusservice["/Energy/GensetToAcOut"] + \
+                ((self._dbusservice["/Ac/Out/P"]) * energy_sec * 0.00000028)
+              self._dbusservice["/Energy/GensetToDc"] = self._dbusservice["/Energy/GensetToDc"] + \
+                (self._dbusservice["/Dc/0/Power"]  * energy_sec * 0.00000028)
+            else :  # Battery is charging from AC out too! 
+              self._dbusservice["/Energy/AcOutToDc"] = self._dbusservice["/Energy/AcOutToDc"] + \
+                ((self._dbusservice["/Ac/Out/P"]) * energy_sec * 0.00000028 *-1)
+              self._dbusservice["/Energy/GensetToDc"] = self._dbusservice["/Energy/GensetToDc"] + \
+                (self._dbusservice["/Ac/ActiveIn/P"]  * energy_sec * 0.00000028)
+          else :  # power also being sent to grid, must all be coming from AC solar
+            self._dbusservice["/Energy/AcOutToGenset"] = self._dbusservice["/Energy/AcOutToGenset"] + \
+              ((self._dbusservice["/Ac/ActiveIn/P"]) * energy_sec * 0.00000028 * -1)
+            self._dbusservice["/Energy/AcOutToDc"] = self._dbusservice["/Energy/AcOutToDc"] + \
+              (self._dbusservice["/Dc/0/Power"]  * energy_sec * 0.00000028)
     else : #Battery discharging
       #if nothing connected, must be all inverter out
       if self._dbusservice["/Ac/ActiveIn/Connected"] == 0:
         self._dbusservice["/Energy/DcToAcOut"] = self._dbusservice["/Energy/DcToAcOut"] + \
           ((self._dbusservice["/Ac/Out/P"])  * energy_sec * 0.00000028)
       else : # we are discharging and grid connected. What is grid doing? 
-        if self._dbusservice["/Ac/ActiveIn/P"] > 0 : #power from grid IN
-          self._dbusservice["/Energy/GridToAcOut"] = self._dbusservice["/Energy/GridToAcOut"] + \
-            ((self._dbusservice["/Ac/Out/P"]) * energy_sec * 0.00000028)
-          self._dbusservice["/Energy/DcToAcOut"] = self._dbusservice["/Energy/DcToAcOut"] + \
-            (self._dbusservice["/Dc/0/Power"]  * energy_sec * 0.00000028 *-1)
-        else :  #power to grid out and battery discharging
-          if self._dbusservice["/Ac/Out/P"] > 0 :  #AC going OUT of ACout, all coming from battery
+        if sma_system["AcInput"] == 0: #grid input
+          if self._dbusservice["/Ac/ActiveIn/P"] > 0 : #power from grid IN
+            self._dbusservice["/Energy/GridToAcOut"] = self._dbusservice["/Energy/GridToAcOut"] + \
+              ((self._dbusservice["/Ac/Out/P"]) * energy_sec * 0.00000028)
             self._dbusservice["/Energy/DcToAcOut"] = self._dbusservice["/Energy/DcToAcOut"] + \
-              ((self._dbusservice["/Ac/Out/P"])  * energy_sec * 0.00000028)
-            self._dbusservice["/Energy/DcToGrid"] = self._dbusservice["/Energy/DcToGrid"] + \
-              ((self._dbusservice["/Ac/ActiveIn/P"])  * energy_sec * 0.00000028 *-1)
-          else : #AC coming IN of AC out too, DC and ACout feeding AC in
-            self._dbusservice["/Energy/AcOutToGrid"] = self._dbusservice["/Energy/AcOutToGrid"] + \
-              ((self._dbusservice["/Ac/Out/P"]) * energy_sec * 0.00000028 *-1)
-            self._dbusservice["/Energy/DcToGrid"] = self._dbusservice["/Energy/DcToGrid"] + \
-              ((self._dbusservice["/Dc/0/Power"])  * energy_sec * 0.00000028 *-1)
+              (self._dbusservice["/Dc/0/Power"]  * energy_sec * 0.00000028 *-1)
+          else :  #power to grid out and battery discharging
+            if self._dbusservice["/Ac/Out/P"] > 0 :  #AC going OUT of ACout, all coming from battery
+              self._dbusservice["/Energy/DcToAcOut"] = self._dbusservice["/Energy/DcToAcOut"] + \
+                ((self._dbusservice["/Ac/Out/P"])  * energy_sec * 0.00000028)
+              self._dbusservice["/Energy/DcToGrid"] = self._dbusservice["/Energy/DcToGrid"] + \
+                ((self._dbusservice["/Ac/ActiveIn/P"])  * energy_sec * 0.00000028 *-1)
+            else : #AC coming IN of AC out too, DC and ACout feeding AC in
+              self._dbusservice["/Energy/AcOutToGrid"] = self._dbusservice["/Energy/AcOutToGrid"] + \
+                ((self._dbusservice["/Ac/Out/P"]) * energy_sec * 0.00000028 *-1)
+              self._dbusservice["/Energy/DcToGrid"] = self._dbusservice["/Energy/DcToGrid"] + \
+                ((self._dbusservice["/Dc/0/Power"])  * energy_sec * 0.00000028 *-1)
+        else: #gen input 
+          if self._dbusservice["/Ac/ActiveIn/P"] > 0 : #power from Genset IN
+            self._dbusservice["/Energy/GensetToAcOut"] = self._dbusservice["/Energy/GensetToAcOut"] + \
+              ((self._dbusservice["/Ac/Out/P"]) * energy_sec * 0.00000028)
+            self._dbusservice["/Energy/DcToAcOut"] = self._dbusservice["/Energy/DcToAcOut"] + \
+              (self._dbusservice["/Dc/0/Power"]  * energy_sec * 0.00000028 *-1)
+          else :  #power to Genset out and battery discharging
+            if self._dbusservice["/Ac/Out/P"] > 0 :  #AC going OUT of ACout, all coming from battery
+              self._dbusservice["/Energy/DcToAcOut"] = self._dbusservice["/Energy/DcToAcOut"] + \
+                ((self._dbusservice["/Ac/Out/P"])  * energy_sec * 0.00000028)
+              self._dbusservice["/Energy/DcToGenset"] = self._dbusservice["/Energy/DcToGenset"] + \
+                ((self._dbusservice["/Ac/ActiveIn/P"])  * energy_sec * 0.00000028 *-1)
+            else : #AC coming IN of AC out too, DC and ACout feeding AC in
+              self._dbusservice["/Energy/AcOutToGenset"] = self._dbusservice["/Energy/AcOutToGenset"] + \
+                ((self._dbusservice["/Ac/Out/P"]) * energy_sec * 0.00000028 *-1)
+              self._dbusservice["/Energy/DcToGenset"] = self._dbusservice["/Energy/DcToGenset"] + \
+                ((self._dbusservice["/Dc/0/Power"])  * energy_sec * 0.00000028 *-1)
 
 
  # if self._dbusservice["/Dc/0/Power"] > 0:
@@ -628,17 +667,17 @@ class SmaDriver:
     #print(timer() - self._dbusservice["/Energy/Time"], ":", self._dbusservice["/Ac/Out/P"])
     self._dbusservice["/Energy/InverterToAcOut"] = self._dbusservice["/Energy/DcToAcOut"]
     self._dbusservice["/Energy/OutToInverter"] = self._dbusservice["/Energy/AcOutToDc"]
-    if sma_system["AcInput"] == 0:
-      self._dbusservice["/Energy/AcIn1ToAcOut"] = self._dbusservice["/Energy/GridToAcOut"]
-      self._dbusservice["/Energy/AcIn1ToInverter"] = self._dbusservice["/Energy/GridToDc"]
-      self._dbusservice["/Energy/AcOutToAcIn1"] = self._dbusservice["/Energy/AcOutToGrid"]
-      self._dbusservice["/Energy/InverterToAcIn1"] = self._dbusservice["/Energy/DcToGrid"]
-      
-    elif sma_system["AcInput"] == 1:
-      self._dbusservice["/Energy/AcIn2ToAcOut"] = self._dbusservice["/Energy/GridToAcOut"]
-      self._dbusservice["/Energy/AcIn2ToInverter"] = self._dbusservice["/Energy/GridToDc"]
-      self._dbusservice["/Energy/AcOutToAcIn2"] = self._dbusservice["/Energy/AcOutToGrid"]
-      self._dbusservice["/Energy/InverterToAcIn2"] = self._dbusservice["/Energy/DcToGrid"]
+
+    self._dbusservice["/Energy/AcIn1ToAcOut"] = self._dbusservice["/Energy/GridToAcOut"]
+    self._dbusservice["/Energy/AcIn1ToInverter"] = self._dbusservice["/Energy/GridToDc"]
+    self._dbusservice["/Energy/AcOutToAcIn1"] = self._dbusservice["/Energy/AcOutToGrid"]
+    self._dbusservice["/Energy/InverterToAcIn1"] = self._dbusservice["/Energy/DcToGrid"]
+    
+
+    self._dbusservice["/Energy/AcIn2ToAcOut"] = self._dbusservice["/Energy/GensetToAcOut"]
+    self._dbusservice["/Energy/AcIn2ToInverter"] = self._dbusservice["/Energy/GensetToDc"]
+    self._dbusservice["/Energy/AcOutToAcIn2"] = self._dbusservice["/Energy/AcOutToGenset"]
+    self._dbusservice["/Energy/InverterToAcIn2"] = self._dbusservice["/Energy/DcToGenset"]
 
 
 
