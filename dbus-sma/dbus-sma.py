@@ -594,7 +594,7 @@ class SmaDriver:
             self._dbusservice["/Energy/AcOutToDc"] = self._dbusservice["/Energy/AcOutToDc"] + \
               (self._dbusservice["/Dc/0/Power"]  * energy_sec * 0.00000028)
         else: # gen input
-           if self._dbusservice["/Ac/ActiveIn/P"] > 0 : #power from grid IN
+          if self._dbusservice["/Ac/ActiveIn/P"] > 0 : #power from grid IN
             if self._dbusservice["/Ac/Out/P"] > 0 :  #AC going OUT of ACout
               self._dbusservice["/Energy/GensetToAcOut"] = self._dbusservice["/Energy/GensetToAcOut"] + \
                 ((self._dbusservice["/Ac/Out/P"]) * energy_sec * 0.00000028)
