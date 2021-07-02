@@ -313,11 +313,15 @@ class SmaDriver:
     self._dbusservice.add_path('/Energy/AcOutToGrid',      0)
 
     self._dbusservice.add_path('/Energy/AcIn1ToInverter',  0)
+    self._dbusservice.add_path('/Energy/AcIn2ToInverter',  0)
     self._dbusservice.add_path('/Energy/AcIn1ToAcOut',     0)
+    self._dbusservice.add_path('/Energy/AcIn2ToAcOut',     0)
     self._dbusservice.add_path('/Energy/InverterToAcOut',  0)
     
     self._dbusservice.add_path('/Energy/InverterToAcIn1',  0)
+    self._dbusservice.add_path('/Energy/InverterToAcIn2',  0)
     self._dbusservice.add_path('/Energy/AcOutToAcIn1',     0)
+    self._dbusservice.add_path('/Energy/AcOutToAcIn2',     0)
     self._dbusservice.add_path('/Energy/OutToInverter',  0)
     self._dbusservice.add_path('/Energy/Time',       timer())
 
@@ -424,21 +428,16 @@ class SmaDriver:
           sma_battery["Current"] = float(getSignedNumber(msg.data[2] + msg.data[3]*256, 16)) / 10
           self._updatedbus()   
         elif msg.arbitration_id == CANFrames["Bits"]:
-          if msg.data[1]&8:  #Generator input, which never shows as GdOn when there
+          if msg.data[1]&1:  #Generator input, which never shows as GdOn when there
             if msg.data[2]&64: #connected if shows good
-              sma_system["AcInput"] = 2
+              sma_system["AcInput"] = 1
             else:
               sma_system["AcInput"] = 240
           else:
             if msg.data[2]&128:
-              sma_system["AcInput"] = 1
+              sma_system["AcInput"] = 0
             else:
               sma_system["AcInput"] = 240
-
-         # if msg.data[2]&128:
-          #  sma_system["ExtRelay"] = 1
-         # else:
-          #  sma_system["ExtRelay"] = 0
           if msg.data[2]&64:
             sma_system["ExtOk"] = 0 
             #print ("Grid OK")
@@ -627,14 +626,22 @@ class SmaDriver:
         # ((self._dbusservice["/Ac/Out/P"])  * energy_sec * 0.00000028)
   
     #print(timer() - self._dbusservice["/Energy/Time"], ":", self._dbusservice["/Ac/Out/P"])
-
-    self._dbusservice["/Energy/AcIn1ToAcOut"] = self._dbusservice["/Energy/GridToAcOut"]
-    self._dbusservice["/Energy/AcIn1ToInverter"] = self._dbusservice["/Energy/GridToDc"]
     self._dbusservice["/Energy/InverterToAcOut"] = self._dbusservice["/Energy/DcToAcOut"]
-
-    self._dbusservice["/Energy/AcOutToAcIn1"] = self._dbusservice["/Energy/AcOutToGrid"]
-    self._dbusservice["/Energy/InverterToAcIn1"] = self._dbusservice["/Energy/DcToGrid"]
     self._dbusservice["/Energy/OutToInverter"] = self._dbusservice["/Energy/AcOutToDc"]
+    if sma_system["AcInput"] == 0:
+      self._dbusservice["/Energy/AcIn1ToAcOut"] = self._dbusservice["/Energy/GridToAcOut"]
+      self._dbusservice["/Energy/AcIn1ToInverter"] = self._dbusservice["/Energy/GridToDc"]
+      self._dbusservice["/Energy/AcOutToAcIn1"] = self._dbusservice["/Energy/AcOutToGrid"]
+      self._dbusservice["/Energy/InverterToAcIn1"] = self._dbusservice["/Energy/DcToGrid"]
+      
+    elif sma_system["AcInput"] == 1:
+      self._dbusservice["/Energy/AcIn2ToAcOut"] = self._dbusservice["/Energy/GridToAcOut"]
+      self._dbusservice["/Energy/AcIn2ToInverter"] = self._dbusservice["/Energy/GridToDc"]
+      self._dbusservice["/Energy/AcOutToAcIn2"] = self._dbusservice["/Energy/AcOutToGrid"]
+      self._dbusservice["/Energy/InverterToAcIn2"] = self._dbusservice["/Energy/DcToGrid"]
+
+
+
     #self._dbusservice["/Energy/Time"] = timer()
     return True
 
