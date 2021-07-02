@@ -643,13 +643,10 @@ class SmaDriver:
             if self._dbusservice["/Ac/Out/P"] > 0 :  #AC going OUT of ACout, all coming from battery
               self._dbusservice["/Energy/DcToAcOut"] = self._dbusservice["/Energy/DcToAcOut"] + \
                 ((self._dbusservice["/Ac/Out/P"])  * energy_sec * 0.00000028)
-              self._dbusservice["/Energy/DcToGenset"] = self._dbusservice["/Energy/DcToGenset"] + \
-                ((self._dbusservice["/Ac/ActiveIn/P"])  * energy_sec * 0.00000028 *-1)
             else : #AC coming IN of AC out too, DC and ACout feeding AC in
               self._dbusservice["/Energy/AcOutToGenset"] = self._dbusservice["/Energy/AcOutToGenset"] + \
                 ((self._dbusservice["/Ac/Out/P"]) * energy_sec * 0.00000028 *-1)
-              self._dbusservice["/Energy/DcToGenset"] = self._dbusservice["/Energy/DcToGenset"] + \
-                ((self._dbusservice["/Dc/0/Power"])  * energy_sec * 0.00000028 *-1)
+             
 
 
  # if self._dbusservice["/Dc/0/Power"] > 0:
