@@ -202,6 +202,7 @@ class SmaDriver:
     
     sTree={
       'acinput': ['/Settings/SystemSetup/AcInput1', 1, 0, 0],
+      'acinput': ['/Settings/SystemSetup/AcInput2', 2, 0, 0],
       'hub4mode': ['/Settings/CGwacs/Hub4Mode', 3, 0, 0], 
       'gridmeter': ['/Settings/CGwacs/RunWithoutGridMeter', 1, 0, 0], 
       'acsetpoint': ['/Settings/CGwacs/AcPowerSetPoint', 0, 0, 0],
@@ -425,9 +426,9 @@ class SmaDriver:
         elif msg.arbitration_id == CANFrames["Bits"]:
           if msg.data[1]&8:  #Generator input, which never shows as GdOn when there
             sma_system["AcInput"] = 2
-          else if msg.data[2]&128:
+          elif.data[2]&128:
             sma_system["AcInput"] = 1
-          else
+          else:
             sma_system["AcInput"] = 240
          # if msg.data[2]&128:
           #  sma_system["ExtRelay"] = 1
