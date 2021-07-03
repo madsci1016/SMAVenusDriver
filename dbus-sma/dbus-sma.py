@@ -93,7 +93,7 @@ CANFrames = {"ExtPwr": 0x300, "InvPwr": 0x301, "OutputVoltage": 0x304, "Battery"
 sma_line1 = {"OutputVoltage": 0, "ExtPwr": 0, "InvPwr": 0, "ExtVoltage": 0, "ExtFreq": 0.00, "OutputFreq": 0.00}
 sma_line2 = {"OutputVoltage": 0, "ExtPwr": 0, "InvPwr": 0, "ExtVoltage": 0}
 sma_battery = {"Voltage": 0, "Current": 0}
-sma_system = {"State": 0, "ExtRelay" : 0, "ExtOk" : 0, "Load" : 0, "SocGoal" : 0, "AcInput" : 0}
+sma_system = {"State": 0, "ExtOk" : 0, "Load" : 0, "SocGoal" : 0, "AcInput" : 0}
 
 #settings = 0
 
@@ -527,12 +527,6 @@ class SmaDriver:
     else:
       self._dbusservice["/Ac/ActiveIn/Connected"] = 1
 
-    #if sma_system["ExtRelay"]:
-    #  self._dbusservice["/Ac/ActiveIn/Connected"] = 1
-    #  self._dbusservice["/Ac/ActiveIn/ActiveInput"] = 0
-    #else:
-    #  self._dbusservice["/Ac/ActiveIn/Connected"] = 0
-    #  self._dbusservice["/Ac/ActiveIn/ActiveInput"] = 240
 
     # state = 3:Bulk, 4:Absorb, 5:Float, 6:Storage, 7:Equalize, 8:Passthrough 9:Inverting 
     # push charging state to dbus
@@ -548,7 +542,7 @@ class SmaDriver:
         if (self._bms_data.charging_state == "bulk_chg"):
           vebusChargeState = 1
           sma_system["State"] = 3
-          if(sma_system["ExtRelay"] == 1 and sma_battery["Current"] > -5):
+          if(sma_system["AcInput"] != 240 and sma_battery["Current"] > -5):
             sma_system["State"] = 8
         elif (self._bms_data.charging_state == "absorb_chg"):
           vebusChargeState = 2
@@ -797,7 +791,7 @@ class SmaDriver:
       else:
         #passthrough
         # for Hysteresis change base on current state
-        if(sma_system["ExtRelay"] == 1): #relay closed, mid band
+        if(sma_system["AcInput"] != 240): #relay closed, mid band
           fake_soc = 15.0
         else:
           fake_soc = 95.0
@@ -823,7 +817,7 @@ class SmaDriver:
       else:
         #passthrough
         # for Hysteresis change base on current state
-        if(sma_system["ExtRelay"] == 1): #relay closed, mid band
+        if(sma_system["AcInput"] != 240): #relay closed, mid band
           fake_soc = 15.0
         else:
           fake_soc = 95.0
@@ -831,7 +825,7 @@ class SmaDriver:
 
 
     else:
-      if (sma_system["ExtRelay"] == 1):
+      if (sma_system["AcInput"] != 240):
         #no point in running the math below to calculate a new target charge current unless we have an update from the inverters
         #which is slow. Like every 12 seconds. 
         #global SMAupdate  
@@ -870,7 +864,7 @@ class SmaDriver:
 
 
     logger.info("Grid Logic: Time: {0}, On Grid: {1} Charge amps: {2}" \
-      .format(now, sma_system["ExtRelay"], charge_amps))
+      .format(now, sma_system["AcInput"], charge_amps))
 
     # update the requested bulk current based on the grid solar charge logic
     self.bms_controller.update_req_bulk_current(charge_amps)
