@@ -1,52 +1,50 @@
 0x300
-First 2 bytes Master total external grid power 0.1s of kW
-Second 2 bytes, Slave total external grid power 0.1s of kW
+First 2 bytes Line 1 total external grid power 0.1s of kW
+Second 2 bytes, Line 2 total external grid power 0.1s of kW
+Next two bytes Line 3? 
 
 0x301 
-First 2 bytes, Master total inverter power 0.1s of kW
-Second 2 bytes, Slave total inverter power 0.1s of kW
+First 2 bytes, Line 1 total inverter power 0.1s of kW
+Second 2 bytes, Line 2 total inverter power 0.1s of kW
+Next two bytes Line 3? 
 
 0x302
-First two bytes, External tenths of kvar master
-Next two bytes, External tenths of kvar slave
+First two bytes, External tenths of kvar Line 1
+Next two bytes, External tenths of kvar Line 2
+Next two bytes Line 3? 
 
 0x303
-First two bytes, Inverter tenths of kvar master
-Next two bytes, Inverter tenths of kvar slave
+First two bytes, Inverter tenths of kvar Line 1
+Next two bytes, Inverter tenths of kvar Line 2
+Next two bytes Line 3? 
 
 0x304 
-First two bytes output voltage master
-Next two bytes output voltage slave 1?
-Next two bytes output voltage slave 2?
+First two bytes output voltage Line 1
+Next two bytes output voltage Line 2
+Next two bytes output voltage Line 3?
 Last two bytes output frequency
 
 0x305
 First two bytes, DC voltage
 Second 2 bytes, DC current combined system,  signed 16bit 0.1A
 Last 4 bytes unknown, always seem to be E6,00,DE,03
+Maybe batt temperature or Soc in other modes? 
 
 0x306
 
 0x307
-Byte 2, high two bits are useful. Bit 7 is 1 for AC2 relay closed. Bit 6 is 1 for valid voltage present on AC2. 
+Byte 0 seems to be relay states if relays are programmed. 
+Byte 1 bit 1 seems to be high in generator input mode only. 
+Byte 2, high two bits are useful. Bit 7 is 1 for AC2 relay closed in grid mode only. Bit 6 is 1 for valid voltage present on AC2 in grid or generator mode. 
 
 0x308
-(Guess) first two bytes is total Load power. 
+First two bytes is total output Load power. 
 
 0x309 
 First two bytes input voltage
-Next two bytes input voltage slave 1?
-Next two bytes input voltage slave 2?
+Next two bytes input voltage Line 2
+Next two bytes input voltage Line 3?
 last two bytes grid frequency LSB 0.01Hz
 
-0x351
-Bytes 1,2 Charge voltage goal. 0.1V Not sure the Sunny Island does anything with this. I suspect it errors out if battery goes above this
-Bytes 3,4 Requested charge current, 0.1A
-Bytes 5,6 Requested discharge current. 0.1A. Don’t think SunnyIsland does anything with this. 
-Bytes 7,8 Discharge voltage. 0.1V. Not sure the Sunny Island does anything with this. I suspect it errors out if battery goes below this. 
 
-0x355
-Byte 1,2 SoC 1%
-Byte 3,4 SoH 1%
-Bytes 5,6 SoC 0.01%
 
