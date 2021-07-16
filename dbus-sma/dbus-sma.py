@@ -730,7 +730,7 @@ class SmaDriver:
 
     
     #external mode selected, just pass SoC through. 
-    if (self._dbussettings['essMode'] == 2):
+    if (self._dbussettings['essMode'] == 2 or self._dbussettings['essMode'] == 3):
       charge_amps = self._dbussettings['SMABulkChgA']
     #-----------------  Charge Current logic ---------------------#
 
