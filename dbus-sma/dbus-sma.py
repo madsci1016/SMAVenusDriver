@@ -728,6 +728,10 @@ class SmaDriver:
     self._bms_data.battery_current = current
     self._bms_data.pv_current = pv_current
 
+    
+    #external mode selected, just pass SoC through. 
+    if (self._dbussettings['essMode'] == 2):
+      charge_amps = self._dbussettings['SMABulkChgA']
     #-----------------  Charge Current logic ---------------------#
 
       # SMA Sunny Island Feature:
@@ -744,7 +748,7 @@ class SmaDriver:
     # ESS set to external, old logic
 
     #ESS set to Optimizes, new logic
-    if (self._dbussettings['essMode'] == 10):
+    elif (self._dbussettings['essMode'] == 10):
       #prototype ramp feature. Will follow minimum SOC ramps defined in settings. 
         
       #new way
