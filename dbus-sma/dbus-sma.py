@@ -788,6 +788,9 @@ class SmaDriver:
         #charge hard
         charge_amps = self._dbussettings['SMARampChgA']
         fake_soc = 15.0
+        # if we are far off where we should be. 
+        if(self._bms_data.state_of_charge < (soc_goal - 5)):
+          charge_amps = self._dbussettings['SMABulkChgA']
       elif (self._bms_data.state_of_charge > soc_goal + self._dbussettings['SMAGdSocBand']): 
         #Off grid
         fake_soc = 95.0
