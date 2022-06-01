@@ -865,9 +865,10 @@ class SmaDriver:
       if (charge_amps < 0.0):
         charge_amps = 1.25
     
-    #generator mode overrides all. Just grab full current. 
+    #generator mode overrides all. Just grab full current and set low SoC so inverter charges battery to full
     if sma_system["AcInput"] == 1:
       charge_amps = self._dbussettings['SMABulkChgA']
+      fake_soc = 15.0
 
 
     logger.info("Grid Logic: Time: {0}, On Grid: {1} Charge amps: {2}" \
