@@ -217,6 +217,7 @@ class SmaDriver:
       'SMAGdSocBand': ['/Settings/SMA/GdSocBand', 5,0,100],
       'SMAGdTM1Soc': ['/Settings/SMA/GdTM1Soc', 0,0,100],
       'SMAGdTM2Soc': ['/Settings/SMA/GdTM2Soc', 0,0,100],
+      'SMAGdKeepChargeSoc': ['/Settings/SMA/GdKeepChargeSoc', 0,0,100],
       'SMAGdTM1Time': ['/Settings/SMA/GdTM1Time', 0,0,23],
       'SMAGdTM2Time': ['/Settings/SMA/GdTM2Time', 0,0,23],
       'SMAGdTMSunriseTime': ['/Settings/SMA/GdSunriseTime', 0,0,23],
@@ -805,11 +806,11 @@ class SmaDriver:
         charge_amps = 1.25
 
   
-    #ess keep charged. For me that means hold at SMAGdTM2Soc
+    #ess keep charged. For me that means hold at SMAGdTM2Soc, or did till i added a new SOC goal SMAGdKeepChargeSoc
     elif (self._dbussettings['essMode'] == 9):
       #charge_amps = self._dbussettings['SMABulkChgA']
       
-      soc_goal = self._dbussettings['SMAGdTM2Soc']
+      soc_goal = self._dbussettings['SMAGdKeepChargeSoc']
       sma_system["SocGoal"] = soc_goal
     
       # set charge current and fake Soc based off what we want inverters to do. 
