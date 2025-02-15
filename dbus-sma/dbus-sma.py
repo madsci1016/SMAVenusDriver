@@ -82,7 +82,7 @@ driver = {
 	'servicename' : "smasunnyisland",
 	'instance'    : 261,
 	'id'          : 2754,
-	'version'     : 476,
+	'version'     : 0x476,
 	'serial'      : "SMABillConnect",
 	'connection'  : "com.victronenergy.vebus.smasunnyisland"
 }
