@@ -21,7 +21,7 @@ import pytz
 
 from dbus.mainloop.glib import DBusGMainLoop
 import dbus
-from gi.repository import GObject
+from gi.repository import GLib
 
 import can
 from can.bus import BusState
@@ -332,9 +332,9 @@ class SmaDriver:
     self._changed = True
 
     # create timers (time in msec)
-    GObject.timeout_add(2000, exit_on_error, self._can_bus_txmit_handler)
-    GObject.timeout_add(2000, exit_on_error, self._energy_handler)
-    GObject.timeout_add(20, exit_on_error, self._parse_can_data_handler)
+    GLib.timeout_add(2000, exit_on_error, self._can_bus_txmit_handler)
+    GLib.timeout_add(2000, exit_on_error, self._energy_handler)
+    GLib.timeout_add(20, exit_on_error, self._parse_can_data_handler)
 
 #----
   def __del__(self):
@@ -347,7 +347,7 @@ class SmaDriver:
   def run(self):
     # Start and run the mainloop
     logger.info("Starting mainloop, responding only on events")
-    self._mainloop = GObject.MainLoop()
+    self._mainloop = GLib.MainLoop()
 
     try:
       self._mainloop.run()
